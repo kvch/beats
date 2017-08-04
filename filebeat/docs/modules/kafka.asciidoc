@@ -1,0 +1,16 @@
+////
+This file is generated! See scripts/docs_collector.py
+////
+
+[[filebeat-module-kafka]]
+== kafka module
+
+This is the kafka module.
+
+
+[float]
+=== Fields
+
+For a description of each field in the metricset, see the
+<<exported-fields-kafka,exported fields>> section.
+

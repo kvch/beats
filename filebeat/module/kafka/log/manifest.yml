@@ -1,0 +1,14 @@
+module_version: 1.0
+
+kafka.home: /opt/kafka[_-\.0-9]*
+
+var:
+  - name: paths
+    default:
+      - ${kafka.home}/logs/controller.log*
+      - ${kafka.home}/logs/server.log*
+      - ${kafka.home}/logs/state-change.log*
+      - ${kafka.home}/logs/kafka-*.log*
+
+ingest_pipeline: ingest/pipeline.json
+prospector: config/log.yml
