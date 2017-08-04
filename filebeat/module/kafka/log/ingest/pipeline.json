@@ -1,5 +1,5 @@
 {
-  "description": "Pipeline for parsing Kafka log messages",
+  "description": "Pipeline for parsing Apache Kafka log messages",
   "processors": [
     {
       "grok": {

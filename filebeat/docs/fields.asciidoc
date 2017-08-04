@@ -764,6 +764,222 @@ Apache Kafka module
 
 
 [float]
+== gc fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.timestamp`
+
+The timestamp from the log line.
+
+
+[float]
+=== `kafka.gc.pause`
+
+type: float
+
+Time program paused to run GC.
+
+
+[float]
+== eden fields
+
+gc
+
+
+
+[float]
+== before fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.eden.before.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+=== `kafka.gc.eden.before.total`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== after fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.eden.after.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+=== `kafka.gc.eden.after.total`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== survivors fields
+
+gc
+
+
+
+[float]
+== before fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.survivors.before.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== after fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.survivors.after.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== heap fields
+
+gc
+
+
+
+[float]
+== before fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.heap.before.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+=== `kafka.gc.heap.before.total`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== after fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.heap.after.used`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+=== `kafka.gc.heap.after.total`
+
+type: keyword
+
+Time program paused to run GC. (?)
+
+
+[float]
+== time fields
+
+gc
+
+
+
+[float]
+== user fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.time.user.sec`
+
+type: float
+
+Time program paused to run GC. (?)
+
+
+[float]
+== sys fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.time.sys.sec`
+
+type: float
+
+Time program paused to run GC. (?)
+
+
+[float]
+== real fields
+
+gc
+
+
+
+[float]
+=== `kafka.gc.time.real.sec`
+
+type: float
+
+Time program paused to run GC. (?)
+
+
+[float]
 == log fields
 
 log
