@@ -1,0 +1,93 @@
+- name: gc
+  type: group
+  description: >
+    gc
+  fields:
+    - name: timestamp
+      description: >
+        The timestamp from the log line.
+    - name: pause
+      type: float
+      description: >
+        Time of GC run.
+    - name: example
+      type: keyword
+      description: >
+        Example field
+    - name: eden
+      type: group
+      description: >
+          Trace in the log line.
+      fields:
+        - name: before
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.
+            - name: total
+              type: long
+              description: >
+                  Message part of the trace.
+        - name: after
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.
+            - name: total
+              type: long
+              description: >
+                  Message part of the trace.
+    - name: survivors
+      type: group
+      description: >
+          Trace in the log line.
+      fields:
+        - name: before
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.
+        - name: after
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.
+    - name: heap
+      type: group
+      description: >
+          Trace in the log line.
+      fields:
+        - name: before
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.
+        - name: after
+          type: group
+          description: >
+              Trace in the log line.
+          fields:
+            - name: used
+              type: long
+              description: >
+                Java class the trace is coming from.

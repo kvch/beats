@@ -1,0 +1,11 @@
+module_version: 1.0
+
+kafka.home: /opt/kafka[_-\.0-9]*
+
+var:
+  - name: paths
+    default:
+      - ${kafka.home}/logs/kafkaServer-gc.log*
+
+ingest_pipeline: ingest/pipeline.json
+prospector: config/gc.yml
