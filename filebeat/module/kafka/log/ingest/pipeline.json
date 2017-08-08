@@ -6,20 +6,20 @@
         "field": "message",
         "trace_match": true,
         "patterns": [
-          "(?m)%{TIMESTAMP_ISO8601:kafka.log.timestamp}. %{LOGLEVEL:kafka.log.level} +%{JAVALOGMESSAGE:kafka.log.message} \\(%{JAVACLASS:kafka.log.trace.class}\\)$[ \\n]*(?'kafka.log.trace.full'.*)"
+          "(?m)%{TIMESTAMP_ISO8601:kafka.log.timestamp}. %{LOGLEVEL:kafka.log.level} +%{JAVALOGMESSAGE:kafka.log.message} \\(%{JAVACLASS:kafka.log.class}\\)$[ \\n]*(?'kafka.log.trace.full'.*)"
         ]
       }
     },
     {
       "grok": {
-        "field": "message",
+        "field": "kafka.log.message",
         "patterns": [
-          "\\[%{DATA:component}][,:. ] +%{JAVALOGMESSAGE:kafka.log.message}"
+          "\\[%{DATA:kafka.log.component}\\][,:. ] +%{JAVALOGMESSAGE:kafka.log.message}"
         ],
         "on_failure": [
           {
             "set": {
-              "field": "component",
+              "field": "kafka.log.component",
               "value": "unknown"
             }
           }

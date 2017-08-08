@@ -14,20 +14,28 @@
       type: text
       description: >
         The logged message.
+    - name: component
+      type: keyword
+      description: >
+        Component the log is coming from.
+    - name: class
+      type: text
+      description: >
+        Java class the log is coming from.
     - name: trace
       type: group
       description: >
           Trace in the log line.
       fields:
         - name: class
-          type: text
+          type: keyword
           description: >
             Java class the trace is coming from.
-        - name: full
-          type: text
-          description: >
-              The full trace in the log line.
         - name: message
           type: text
           description: >
               Message part of the trace.
+        - name: full
+          type: text
+          description: >
+              The full trace in the log line.

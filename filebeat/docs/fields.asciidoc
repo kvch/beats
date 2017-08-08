@@ -781,202 +781,142 @@ The timestamp from the log line.
 
 type: float
 
-Time program paused to run GC.
+Time of GC run.
+
+
+[float]
+=== `kafka.gc.example`
+
+type: keyword
+
+Example field
 
 
 [float]
 == eden fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 == before fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.eden.before.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
 === `kafka.gc.eden.before.total`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Message part of the trace.
 
 
 [float]
 == after fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.eden.after.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
 === `kafka.gc.eden.after.total`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Message part of the trace.
 
 
 [float]
 == survivors fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 == before fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.survivors.before.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
 == after fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.survivors.after.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
 == heap fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 == before fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.heap.before.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
-
-
-[float]
-=== `kafka.gc.heap.before.total`
-
-type: keyword
-
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
 == after fields
 
-gc
+Trace in the log line.
 
 
 
 [float]
 === `kafka.gc.heap.after.used`
 
-type: keyword
+type: long
 
-Time program paused to run GC. (?)
-
-
-[float]
-=== `kafka.gc.heap.after.total`
-
-type: keyword
-
-Time program paused to run GC. (?)
-
-
-[float]
-== time fields
-
-gc
-
-
-
-[float]
-== user fields
-
-gc
-
-
-
-[float]
-=== `kafka.gc.time.user.sec`
-
-type: float
-
-Time program paused to run GC. (?)
-
-
-[float]
-== sys fields
-
-gc
-
-
-
-[float]
-=== `kafka.gc.time.sys.sec`
-
-type: float
-
-Time program paused to run GC. (?)
-
-
-[float]
-== real fields
-
-gc
-
-
-
-[float]
-=== `kafka.gc.time.real.sec`
-
-type: float
-
-Time program paused to run GC. (?)
+Java class the trace is coming from.
 
 
 [float]
@@ -1009,6 +949,22 @@ The logged message.
 
 
 [float]
+=== `kafka.log.component`
+
+type: keyword
+
+Component the log is coming from.
+
+
+[float]
+=== `kafka.log.class`
+
+type: text
+
+Java class the log is coming from.
+
+
+[float]
 == trace fields
 
 Trace in the log line.
@@ -1018,17 +974,9 @@ Trace in the log line.
 [float]
 === `kafka.log.trace.class`
 
-type: text
+type: keyword
 
 Java class the trace is coming from.
-
-
-[float]
-=== `kafka.log.trace.full`
-
-type: text
-
-The full trace in the log line.
 
 
 [float]
@@ -1037,6 +985,14 @@ The full trace in the log line.
 type: text
 
 Message part of the trace.
+
+
+[float]
+=== `kafka.log.trace.full`
+
+type: text
+
+The full trace in the log line.
 
 
 [[exported-fields-kubernetes-processor]]
