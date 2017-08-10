@@ -766,7 +766,7 @@ Apache Kafka module
 [float]
 == gc fields
 
-gc
+Fields from Kafka GC logs.
 
 
 
@@ -781,28 +781,20 @@ The timestamp from the log line.
 
 type: float
 
-Time of GC run.
-
-
-[float]
-=== `kafka.gc.example`
-
-type: keyword
-
-Example field
+Time of a GC run.
 
 
 [float]
 == eden fields
 
-Trace in the log line.
+Info on Eden memory space.
 
 
 
 [float]
 == before fields
 
-Trace in the log line.
+Info on Eden memory space before GC.
 
 
 
@@ -811,7 +803,7 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Eden memory
 
 
 [float]
@@ -819,13 +811,13 @@ Java class the trace is coming from.
 
 type: long
 
-Message part of the trace.
+Total space of Eden memory
 
 
 [float]
 == after fields
 
-Trace in the log line.
+Info on Eden memory space after GC.
 
 
 
@@ -834,7 +826,7 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Eden memory
 
 
 [float]
@@ -842,20 +834,20 @@ Java class the trace is coming from.
 
 type: long
 
-Message part of the trace.
+Total space of Eden memory
 
 
 [float]
 == survivors fields
 
-Trace in the log line.
+Info on Survivor memory spaces.
 
 
 
 [float]
 == before fields
 
-Trace in the log line.
+Info on Survivor memory spaces before GC.
 
 
 
@@ -864,13 +856,13 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Survivor memories
 
 
 [float]
 == after fields
 
-Trace in the log line.
+Info on Survivor memory spaces after GC.
 
 
 
@@ -879,20 +871,20 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Survivor memories
 
 
 [float]
 == heap fields
 
-Trace in the log line.
+Contains information on Java Heap.
 
 
 
 [float]
 == before fields
 
-Trace in the log line.
+Info on Java Heap before GC.
 
 
 
@@ -901,13 +893,13 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Java Heap.
 
 
 [float]
 == after fields
 
-Trace in the log line.
+Info on Java Heap after GC.
 
 
 
@@ -916,7 +908,7 @@ Trace in the log line.
 
 type: long
 
-Java class the trace is coming from.
+Space used by Java Heap.
 
 
 [float]

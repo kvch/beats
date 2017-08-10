@@ -5,8 +5,9 @@ paths:
 {{ end }}
 exclude_files: [".gz$"]
 
-multiline.pattern: '^\s'
-multiline.negate: false
-multiline.match: after
+multiline:
+  pattern: '^\s'
+  negate: false
+  match: after
 
 include_lines: ['GC pause']

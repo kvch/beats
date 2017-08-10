@@ -1,7 +1,7 @@
 - name: gc
   type: group
   description: >
-    gc
+    Fields from Kafka GC logs.
   fields:
     - name: timestamp
       description: >
@@ -9,85 +9,81 @@
     - name: pause
       type: float
       description: >
-        Time of GC run.
-    - name: example
-      type: keyword
-      description: >
-        Example field
+        Time of a GC run.
     - name: eden
       type: group
       description: >
-          Trace in the log line.
+          Info on Eden memory space.
       fields:
         - name: before
           type: group
           description: >
-              Trace in the log line.
+              Info on Eden memory space before GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Eden memory
             - name: total
               type: long
               description: >
-                  Message part of the trace.
+                Total space of Eden memory
         - name: after
           type: group
           description: >
-              Trace in the log line.
+              Info on Eden memory space after GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Eden memory
             - name: total
               type: long
               description: >
-                  Message part of the trace.
+                Total space of Eden memory
     - name: survivors
       type: group
       description: >
-          Trace in the log line.
+          Info on Survivor memory spaces.
       fields:
         - name: before
           type: group
           description: >
-              Trace in the log line.
+              Info on Survivor memory spaces before GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Survivor memories
         - name: after
           type: group
           description: >
-              Trace in the log line.
+              Info on Survivor memory spaces after GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Survivor memories
     - name: heap
       type: group
       description: >
-          Trace in the log line.
+          Contains information on Java Heap.
       fields:
         - name: before
           type: group
           description: >
-              Trace in the log line.
+              Info on Java Heap before GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Java Heap.
         - name: after
           type: group
           description: >
-              Trace in the log line.
+              Info on Java Heap after GC.
           fields:
             - name: used
               type: long
               description: >
-                Java class the trace is coming from.
+                Space used by Java Heap.
