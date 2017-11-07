@@ -3,15 +3,11 @@
 package system
 
 import (
-	"math"
 	"runtime"
 
 	sigar "github.com/elastic/gosigar"
+	"github.com/elastic/libbeat/common"
 )
-
-// maxDecimalPlaces is the maximum number of decimal places that the Round
-// function return.
-const maxDecimalPlaces = 4
 
 var (
 	// NumCPU is the number of CPU cores in the system. Changes to operating
@@ -96,11 +92,11 @@ func cpuPercentages(s0, s1 *sigar.Cpu, numCPU int) CPUPercentages {
 	calculatePct := func(v0, v1 uint64) float64 {
 		cpuDelta := int64(v1 - v0)
 		pct := float64(cpuDelta) / float64(timeDelta)
-		return Round(pct * float64(numCPU))
+		return common.Round(pct * float64(numCPU))
 	}
 
 	calculateTotalPct := func() float64 {
-		return Round(float64(numCPU) - calculatePct(s0.Idle, s1.Idle))
+		return common.Round(float64(numCPU) - calculatePct(s0.Idle, s1.Idle))
 	}
 
 	return CPUPercentages{
@@ -197,9 +193,9 @@ type LoadAverages struct {
 // 0 to NumCPU.
 func (m *LoadMetrics) Averages() LoadAverages {
 	return LoadAverages{
-		OneMinute:     Round(m.sample.One),
-		FiveMinute:    Round(m.sample.Five),
-		FifteenMinute: Round(m.sample.Fifteen),
+		OneMinute:     common.Round(m.sample.One),
+		FiveMinute:    common.Round(m.sample.Five),
+		FifteenMinute: common.Round(m.sample.Fifteen),
 	}
 }
 
@@ -207,26 +203,8 @@ func (m *LoadMetrics) Averages() LoadAverages {
 // These values should range from 0 to 1.
 func (m *LoadMetrics) NormalizedAverages() LoadAverages {
 	return LoadAverages{
-		OneMinute:     Round(m.sample.One / float64(NumCPU)),
-		FiveMinute:    Round(m.sample.Five / float64(NumCPU)),
-		FifteenMinute: Round(m.sample.Fifteen / float64(NumCPU)),
+		OneMinute:     common.Round(m.sample.One / float64(NumCPU)),
+		FiveMinute:    common.Round(m.sample.Five / float64(NumCPU)),
+		FifteenMinute: common.Round(m.sample.Fifteen / float64(NumCPU)),
 	}
-}
-
-// Helpers
-
-// Round rounds the given float64 value and ensures that it has a maximum of
-// four decimal places.
-func Round(val float64) (newVal float64) {
-	var round float64
-	pow := math.Pow(10, float64(maxDecimalPlaces))
-	digit := pow * val
-	_, div := math.Modf(digit)
-	if div >= 0.5 {
-		round = math.Ceil(digit)
-	} else {
-		round = math.Floor(digit)
-	}
-	newVal = round / pow
-	return
 }

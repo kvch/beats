@@ -15,7 +15,6 @@ import (
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/common/match"
 	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/module/system"
 	"github.com/elastic/beats/metricbeat/module/system/memory"
 	sigar "github.com/elastic/gosigar"
 )
@@ -194,7 +193,7 @@ func GetProcMemPercentage(proc *Process, totalPhyMem uint64) float64 {
 
 	perc := (float64(proc.Mem.Resident) / float64(totalPhyMem))
 
-	return system.Round(perc)
+	return common.Round(perc)
 }
 
 func Pids() ([]int, error) {
@@ -301,7 +300,7 @@ func GetProcCpuPercentage(s0, s1 *Process) (normalizedPct, pct float64) {
 		pct := float64(totalCPUDeltaMillis) / float64(timeDeltaMillis)
 		normalizedPct := pct / float64(NumCPU)
 
-		return system.Round(normalizedPct), system.Round(pct)
+		return common.Round(normalizedPct), common.Round(pct)
 	}
 	return 0, 0
 }
