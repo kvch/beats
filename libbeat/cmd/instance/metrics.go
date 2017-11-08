@@ -89,5 +89,5 @@ func getCPUUsage() (float64, float64) {
 	normalized := usage / float64(numCores)
 
 	lastSample = sample
-	return common.Round(usage), common.Round(normalized)
+	return common.Round(usage, 4), common.Round(normalized, 4)
 }

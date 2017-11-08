@@ -2,15 +2,11 @@ package common
 
 import "math"
 
-// maxDecimalPlaces is the maximum number of decimal places that the Round
-// function return.
-var maxDecimalPlaces = 4
-
 // Round rounds the given float64 value and ensures that it has a maximum of
-// four decimal places.
-func Round(val float64) (newVal float64) {
+// precision decimal places.
+func Round(val float64, precision int64) (newVal float64) {
 	var round float64
-	pow := math.Pow(10, float64(maxDecimalPlaces))
+	pow := math.Pow(10, float64(precision))
 	digit := pow * val
 	_, div := math.Modf(digit)
 	if div >= 0.5 {
