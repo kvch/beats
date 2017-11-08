@@ -10,14 +10,18 @@ import (
 	sigar "github.com/elastic/gosigar"
 )
 
-var lastSample = struct {
+type cpuSample struct {
 	time      time.Time
 	procTimes sigar.ProcTime
-}{
-	time.Now(),
-	sigar.ProcTime{},
 }
-var numCores = runtime.NumCPU()
+
+var (
+	numCores   = runtime.NumCPU()
+	lastSample = cpuSample{
+		time:      time.Now(),
+		procTimes: sigar.ProcTime{},
+	}
+)
 
 func init() {
 	pid := os.Getpid()
@@ -68,12 +72,9 @@ func reportCPU(_ monitoring.Mode, V monitoring.Visitor) {
 func getCPUUsage() (float64, float64) {
 	pid := os.Getpid()
 
-	sample := struct {
-		time      time.Time
-		procTimes sigar.ProcTime
-	}{
-		time.Now(),
-		sigar.ProcTime{},
+	sample := cpuSample{
+		time:      time.Now(),
+		procTimes: sigar.ProcTime{},
 	}
 
 	if err := sample.procTimes.Get(pid); err != nil {
