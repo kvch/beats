@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/elastic/beats/libbeat/common"
-	//"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/monitoring"
 	sigar "github.com/elastic/gosigar"
 )
@@ -30,7 +29,7 @@ func init() {
 	metrics := monitoring.Default.NewRegistry("beat")
 
 	monitoring.NewFunc(metrics, "memstats", reportMemStats, monitoring.Report)
-	monitoring.NewFunc(metrics, "cpu", reportCpu, monitoring.Report)
+	monitoring.NewFunc(metrics, "cpu", reportCPU, monitoring.Report)
 	monitoring.NewFunc(metrics, "info", reportInfo, monitoring.Report)
 }
 
@@ -57,16 +56,16 @@ func reportInfo(_ monitoring.Mode, V monitoring.Visitor) {
 	monitoring.ReportInt(V, "uptime.ms", uptime)
 }
 
-func reportCpu(_ monitoring.Mode, V monitoring.Visitor) {
+func reportCPU(_ monitoring.Mode, V monitoring.Visitor) {
 	V.OnRegistryStart()
 	defer V.OnRegistryFinished()
 
-	cpuUsage, normalizedCpu := getCpuUsage()
+	cpuUsage, normalizedCPU := getCPUUsage()
 	monitoring.ReportFloat(V, "usage", cpuUsage)
-	monitoring.ReportFloat(V, "usage.normalized", normalizedCpu)
+	monitoring.ReportFloat(V, "usage.normalized", normalizedCPU)
 }
 
-func getCpuUsage() (float64, float64) {
+func getCPUUsage() (float64, float64) {
 	pid := os.Getpid()
 
 	sample := struct {
@@ -83,9 +82,9 @@ func getCpuUsage() (float64, float64) {
 
 	dTime := sample.time.Sub(lastSample.time)
 	dMilli := dTime / time.Millisecond
-	dCpu := int64(sample.procTimes.Total - lastSample.procTimes.Total)
+	dCPU := int64(sample.procTimes.Total - lastSample.procTimes.Total)
 
-	usage := float64(dCpu) / float64(dMilli)
+	usage := float64(dCPU) / float64(dMilli)
 	normalized := usage / float64(numCores)
 
 	lastSample = sample
