@@ -25,5 +25,8 @@ func init() {
 	RootCmd.PersistentFlags().AddGoFlag(flag.CommandLine.Lookup("M"))
 	RootCmd.TestCmd.Flags().AddGoFlag(flag.CommandLine.Lookup("modules"))
 	RootCmd.SetupCmd.Flags().AddGoFlag(flag.CommandLine.Lookup("modules"))
-	RootCmd.AddCommand(cmd.GenModulesCmd(Name, "", buildModulesManager))
+
+	modulesCmd := cmd.GenModulesCmd(Name, "", buildModulesManager)
+	modulesCmd.AddCommand(genGenerateCmd())
+	RootCmd.AddCommand(modulesCmd)
 }
