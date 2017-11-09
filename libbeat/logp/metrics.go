@@ -71,6 +71,8 @@ var gauges = map[string]bool{
 	"beat.memstats.memory_total":     true,
 	"beat.memstats.memory_alloc":     true,
 	"beat.memstats.gc_next":          true,
+	"beat.cpu.usage":                 true,
+	"beat.cpu.usage.normalized":      true,
 }
 
 func snapshotDelta(prev, cur monitoring.FlatSnapshot) map[string]interface{} {
