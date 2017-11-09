@@ -5,8 +5,8 @@ package system
 import (
 	"runtime"
 
+	"github.com/elastic/beats/libbeat/common"
 	sigar "github.com/elastic/gosigar"
-	"github.com/elastic/libbeat/common"
 )
 
 var (
@@ -92,11 +92,11 @@ func cpuPercentages(s0, s1 *sigar.Cpu, numCPU int) CPUPercentages {
 	calculatePct := func(v0, v1 uint64) float64 {
 		cpuDelta := int64(v1 - v0)
 		pct := float64(cpuDelta) / float64(timeDelta)
-		return common.Round(pct * float64(numCPU))
+		return common.Round(pct*float64(numCPU), 4)
 	}
 
 	calculateTotalPct := func() float64 {
-		return common.Round(float64(numCPU) - calculatePct(s0.Idle, s1.Idle))
+		return common.Round(float64(numCPU)-calculatePct(s0.Idle, s1.Idle), 4)
 	}
 
 	return CPUPercentages{
@@ -193,9 +193,9 @@ type LoadAverages struct {
 // 0 to NumCPU.
 func (m *LoadMetrics) Averages() LoadAverages {
 	return LoadAverages{
-		OneMinute:     common.Round(m.sample.One),
-		FiveMinute:    common.Round(m.sample.Five),
-		FifteenMinute: common.Round(m.sample.Fifteen),
+		OneMinute:     common.Round(m.sample.One, 4),
+		FiveMinute:    common.Round(m.sample.Five, 4),
+		FifteenMinute: common.Round(m.sample.Fifteen, 4),
 	}
 }
 
@@ -203,8 +203,8 @@ func (m *LoadMetrics) Averages() LoadAverages {
 // These values should range from 0 to 1.
 func (m *LoadMetrics) NormalizedAverages() LoadAverages {
 	return LoadAverages{
-		OneMinute:     common.Round(m.sample.One / float64(NumCPU)),
-		FiveMinute:    common.Round(m.sample.Five / float64(NumCPU)),
-		FifteenMinute: common.Round(m.sample.Fifteen / float64(NumCPU)),
+		OneMinute:     common.Round(m.sample.One/float64(NumCPU), 4),
+		FiveMinute:    common.Round(m.sample.Five/float64(NumCPU), 4),
+		FifteenMinute: common.Round(m.sample.Fifteen/float64(NumCPU), 4),
 	}
 }
