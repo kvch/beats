@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/elastic/gosigar"
+
+	"github.com/elastic/beats/libbeat/common"
 )
 
 func TestCPUMonitorSample(t *testing.T) {
@@ -125,13 +127,13 @@ func TestCPUMetricsPercentages(t *testing.T) {
 }
 
 func TestRound(t *testing.T) {
-	assert.EqualValues(t, 0.5, Round(0.5))
-	assert.EqualValues(t, 0.5, Round(0.50004))
-	assert.EqualValues(t, 0.5001, Round(0.50005))
+	assert.EqualValues(t, 0.5, common.Round(0.5, 4))
+	assert.EqualValues(t, 0.5, common.Round(0.50004, 4))
+	assert.EqualValues(t, 0.5001, common.Round(0.50005, 4))
 
-	assert.EqualValues(t, 1234.5, Round(1234.5))
-	assert.EqualValues(t, 1234.5, Round(1234.50004))
-	assert.EqualValues(t, 1234.5001, Round(1234.50005))
+	assert.EqualValues(t, 1234.5, common.Round(1234.5, 4))
+	assert.EqualValues(t, 1234.5, common.Round(1234.50004, 4))
+	assert.EqualValues(t, 1234.5001, common.Round(1234.50005, 4))
 }
 
 // Checks that the Host Overview dashboard contains the CHANGEME_HOSTNAME variable

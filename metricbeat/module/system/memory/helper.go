@@ -4,7 +4,6 @@ package memory
 
 import (
 	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/system"
 	sigar "github.com/elastic/gosigar"
 )
 
@@ -30,10 +29,10 @@ func AddMemPercentage(m *MemStat) {
 	}
 
 	perc := float64(m.Mem.Used) / float64(m.Mem.Total)
-	m.UsedPercent = system.Round(perc)
+	m.UsedPercent = common.Round(perc, 4)
 
 	actualPerc := float64(m.Mem.ActualUsed) / float64(m.Mem.Total)
-	m.ActualUsedPercent = system.Round(actualPerc)
+	m.ActualUsedPercent = common.Round(actualPerc, 4)
 }
 
 type SwapStat struct {
@@ -78,5 +77,5 @@ func AddSwapPercentage(s *SwapStat) {
 	}
 
 	perc := float64(s.Swap.Used) / float64(s.Swap.Total)
-	s.UsedPercent = system.Round(perc)
+	s.UsedPercent = common.Round(perc, 4)
 }

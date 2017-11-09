@@ -9,7 +9,6 @@ import (
 	"runtime"
 
 	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/system"
 	sigar "github.com/elastic/gosigar"
 )
 
@@ -76,7 +75,7 @@ func AddFileSystemUsedPercentage(f *FileSystemStat) {
 	}
 
 	perc := float64(f.Used) / float64(f.Total)
-	f.UsedPercent = system.Round(perc)
+	f.UsedPercent = common.Round(perc, 4)
 }
 
 func GetFilesystemEvent(fsStat *FileSystemStat) common.MapStr {
