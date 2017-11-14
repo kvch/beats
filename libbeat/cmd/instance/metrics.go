@@ -34,5 +34,5 @@ func reportInfo(_ monitoring.Mode, V monitoring.Visitor) {
 
 	delta := time.Since(startTime)
 	uptime := int64(delta / time.Millisecond)
-	monitoring.ReportInt(V, "uptime.ms", uptime)
+	monitoring.ReportInt(V, "uptime_in_millis", uptime)
 }
