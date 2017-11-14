@@ -1,4 +1,4 @@
-// +build darwin linux openbsd windows
+// +build darwin linux freebsd windows
 
 package instance
 
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/monitoring"
 	sigar "github.com/elastic/gosigar"
 )
@@ -20,8 +21,7 @@ type cpuSample struct {
 var (
 	numCores   = runtime.NumCPU()
 	lastSample = cpuSample{
-		time:      time.Now(),
-		procTimes: sigar.ProcTime{},
+		time: time.Now(),
 	}
 )
 
@@ -29,7 +29,7 @@ func init() {
 	pid := os.Getpid()
 	err := lastSample.procTimes.Get(pid)
 	if err != nil {
-		panic(err)
+		logp.Err("Error getting process ID of the beat: %v", err, "CPU usage might be wrong.")
 	}
 
 	metrics := monitoring.Default.NewRegistry("beat")
@@ -66,21 +66,28 @@ func reportCPU(_ monitoring.Mode, V monitoring.Visitor) {
 	V.OnRegistryStart()
 	defer V.OnRegistryFinished()
 
-	cpuUsage, normalizedCPU := getCPUUsage()
+	cpuUsage, normalizedCPU, err := getProcessCPUUsage()
+	if err != nil {
+		logp.Err("Error retrieving CPU usage of the Beat: %v", err)
+	}
+
 	monitoring.ReportFloat(V, "usage", cpuUsage)
 	monitoring.ReportFloat(V, "usage.normalized", normalizedCPU)
 }
 
-func getCPUUsage() (float64, float64) {
+// getProcessCPUUsage return the CPU usage of the Beat
+// during the period between the given samples.
+// The values are between 0 and 1 in case of normalized values and
+// 0 and number of cores in case of unnormalized values
+func getProcessCPUUsage() (float64, float64, error) {
 	pid := os.Getpid()
 
 	sample := cpuSample{
-		time:      time.Now(),
-		procTimes: sigar.ProcTime{},
+		time: time.Now(),
 	}
 
 	if err := sample.procTimes.Get(pid); err != nil {
-		return 0, 0
+		return 0, 0, err
 	}
 
 	dTime := sample.time.Sub(lastSample.time)
@@ -91,5 +98,5 @@ func getCPUUsage() (float64, float64) {
 	normalized := usage / float64(numCores)
 
 	lastSample = sample
-	return common.Round(usage, 4), common.Round(normalized, 4)
+	return common.Round(usage, 4), common.Round(normalized, 4), nil
 }
