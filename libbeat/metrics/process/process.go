@@ -37,6 +37,7 @@ type Process struct {
 	SampleTime      time.Time
 	FD              sigar.ProcFDUsage
 	Env             common.MapStr
+	cpuTotal        float64
 	cpuTotalPct     float64
 	cpuTotalPctNorm float64
 }
@@ -47,7 +48,7 @@ type ProcStats struct {
 	CpuTicks     bool
 	EnvWhitelist []string
 	CacheCmdLine bool
-	IncludeTop   includeTopConfig
+	IncludeTop   IncludeTopConfig
 
 	procRegexps []match.Matcher // List of regular expressions used to whitelist processes.
 	envRegexps  []match.Matcher // List of regular expressions used to whitelist env vars.
@@ -257,6 +258,7 @@ func (procStats *ProcStats) getProcessEvent(process *Process) common.MapStr {
 			"norm": common.MapStr{
 				"pct": process.cpuTotalPctNorm,
 			},
+			"total_pct": process.cpuTotal,
 		},
 		"start_time": unixTimeMsToTime(process.Cpu.StartTime),
 	}
@@ -291,7 +293,7 @@ func (procStats *ProcStats) getProcessEvent(process *Process) common.MapStr {
 // time multiplied by the number of cores as the total amount of CPU time
 // available between samples. This could result in incorrect percentages if the
 // wall-clock is adjusted (prior to Go 1.9) or the machine is suspended.
-func GetProcCpuPercentage(s0, s1 *Process) (normalizedPct, pct float64) {
+func GetProcCpuPercentage(s0, s1 *Process) (normalizedPct, pct, totalPct float64) {
 	if s0 != nil && s1 != nil {
 		timeDelta := s1.SampleTime.Sub(s0.SampleTime)
 		timeDeltaMillis := timeDelta / time.Millisecond
@@ -300,9 +302,9 @@ func GetProcCpuPercentage(s0, s1 *Process) (normalizedPct, pct float64) {
 		pct := float64(totalCPUDeltaMillis) / float64(timeDeltaMillis)
 		normalizedPct := pct / float64(NumCPU)
 
-		return common.Round(normalizedPct, 4), common.Round(pct, 4)
+		return common.Round(normalizedPct, 4), common.Round(pct, 4), common.Round(float64(s1.Cpu.Total), 4)
 	}
-	return 0, 0
+	return 0, 0, 0
 }
 
 func (procStats *ProcStats) MatchProcess(name string) bool {
@@ -380,7 +382,7 @@ func (procStats *ProcStats) GetProcStats() ([]common.MapStr, error) {
 
 			newProcs[process.Pid] = process
 			last := procStats.ProcsMap[process.Pid]
-			process.cpuTotalPctNorm, process.cpuTotalPct = GetProcCpuPercentage(last, process)
+			process.cpuTotalPctNorm, process.cpuTotalPct, process.cpuTotal = GetProcCpuPercentage(last, process)
 			processes = append(processes, *process)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/libbeat/metrics/process"
 	"github.com/elastic/beats/metricbeat/mb"
 	"github.com/elastic/beats/metricbeat/mb/parse"
 	"github.com/elastic/beats/metricbeat/module/system"
@@ -27,7 +28,7 @@ func init() {
 // MetricSet that fetches process metrics.
 type MetricSet struct {
 	mb.BaseMetricSet
-	stats        *ProcStats
+	stats        *process.ProcStats
 	cgroup       *cgroup.Reader
 	cacheCmdLine bool
 }
@@ -41,7 +42,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 	m := &MetricSet{
 		BaseMetricSet: base,
-		stats: &ProcStats{
+		stats: &process.ProcStats{
 			Procs:        config.Procs,
 			EnvWhitelist: config.EnvWhitelist,
 			CpuTicks:     config.IncludeCPUTicks || (config.CPUTicks != nil && *config.CPUTicks),

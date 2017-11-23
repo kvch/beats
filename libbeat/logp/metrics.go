@@ -74,6 +74,14 @@ var gauges = map[string]bool{
 	"beat.cpu.usage":                 true,
 	"beat.cpu.usage.normalized":      true,
 	"beat.info.uptime.ms":            true,
+	"host.cpu.usage":                 true,
+	"host.cpu.usage.normalized":      true,
+	"host.load_average.1m":           true,
+	"host.load_average.5m":           true,
+	"host.load_average.15m":          true,
+	"host.load_average.norm.1m":      true,
+	"host.load_average.norm.5m":      true,
+	"host.load_average.norm.15m":     true,
 }
 
 func snapshotDelta(prev, cur monitoring.FlatSnapshot) map[string]interface{} {
