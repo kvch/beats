@@ -66,7 +66,7 @@ func reportInfo(_ monitoring.Mode, V monitoring.Visitor) {
 
 	delta := time.Since(log.StartTime)
 	uptime := int64(delta / time.Millisecond)
-	monitoring.ReportInt(V, "uptime.ms", uptime)
+	monitoring.ReportInt(V, "uptime_ms", uptime)
 }
 
 func reportBeatCPU(_ monitoring.Mode, V monitoring.Visitor) {

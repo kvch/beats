@@ -27,7 +27,7 @@ var gauges = map[string]bool{
 	"beat.memstats.memory_total":     true,
 	"beat.memstats.memory_alloc":     true,
 	"beat.memstats.gc_next":          true,
-	"beat.info.uptime.ms":            true,
+	"beat.info.uptime_ms":            true,
 	"beat.cpu.total.pct":             true,
 	"beat.cpu.total.norm.pct":        true,
 	"beat.cpu.total.value":           true,
