@@ -1,0 +1,9 @@
+- key: etcd
+  title: "etcd"
+  description: >
+    etcd Module
+  fields:
+    - name: etcd
+      type: group
+      description: >
+      fields:

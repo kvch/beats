@@ -1,0 +1,41 @@
+{
+  "description": "Pipeline for parsing etcd logs",
+  "processors": [{
+    "grok": {
+      "field": "message",
+      "patterns":[
+        "%{WORD:etcd.log.debug.level}: %{TIMESTAMP:etcd.log.timestamp} %{GREEDYDATA:etcd.log.debug.message}",
+        "%{DATESTAMP:etcd.log.timestamp} %{WORD:etcd.log.level} | %{WORD:etcd.log.component}: %{GREEDYDATA:etcd.log.message}"
+      ],
+      "ignore_missing": true,
+      "pattern_definitions": {
+        "TIMESTAMP": "%{YEAR}/%{MONTHNUM}/%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}"
+      }
+    }
+  },
+  {
+    "remove": {
+      "field": "message"
+    }
+  },
+  {
+    "date": {
+      "field": "etcd.log.timestamp",
+      "target_field": "@timestamp",
+      "formats": ["yyyy-MM-dd HH:mm:ss.SSSSSS"],
+      "ignore_failure": true
+    }
+  },
+  {
+    "remove": {
+      "field": "etcd.log.timestamp"
+    }
+
+  }],
+  "on_failure" : [{
+    "set" : {
+      "field" : "error.message",
+      "value" : "{{ _ingest.on_failure_message }}"
+    }
+  }]
+}

@@ -1,0 +1,5 @@
+dashboards:
+- id: Filebeat-etcd-log-Dashboard
+  file: Filebeat-etcd-log.json
+- id: Filebeat-etcd-debug-Dashboard
+  file: Filebeat-etcd-debug.json
