@@ -21,6 +21,7 @@ package line
 
 import (
 	"bytes"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -53,6 +54,7 @@ var tests = []struct {
 	{"utf-16", []string{"I can", "eat glass"}},
 	{"utf-16", []string{"Pot să mănânc sticlă"}},
 	{"utf-16", []string{"Pot să mănânc sticlă", "și ea nu mă rănește."}},
+	{"utf-16", []string{"\u0001234", "\u0000", "\u3453"}},
 
 	{"utf-16be", []string{""}},
 	{"utf-16be", []string{"I can"}},
@@ -70,6 +72,43 @@ var tests = []struct {
 	{"gb18030", []string{"我能吞下玻璃", "而不傷身。體"}},
 	{"euc-kr", []string{" 나는 유리를 먹을 수 있어요.", " 그래도 아프지 않아요"}},
 	{"euc-jp", []string{"私はガラスを食べられます。", "それは私を傷つけません。"}},
+}
+
+var testsError = []struct {
+	encoding string
+	decoder  string
+	strings  []string
+}{
+	{"latin1", "plain", []string{"I kå Glas frässa"}},
+	{"latin1", "plain", []string{"I kå Glas frässa", "ond des macht mr nix!"}},
+
+	{"utf-8", "utf-16", []string{"árvíztűrő tükörfúrógép"}},
+	{"utf-8", "utf-16", []string{"árvíztűrő", "tükörfúrógép"}},
+
+	{"utf-16", "utf-16be", []string{""}},
+	{"utf-16", "utf-16be", []string{"I can"}},
+	{"utf-16", "utf-16be", []string{"I can", "eat glass"}},
+	{"utf-16", "utf-16be", []string{"Pot să mănânc sticlă"}},
+	{"utf-16", "utf-16be", []string{"Pot să mănânc sticlă", "și ea nu mă rănește."}},
+	{"utf-16", "utf-16be", []string{"\u0001234", "\u0000", "\u3453"}},
+
+	{"utf-16be", "utf-8", []string{""}},
+	{"utf-16be", "utf-8", []string{"I can"}},
+	{"utf-16be", "utf-8", []string{"I can", "eat glass"}},
+	{"utf-16be", "utf-8", []string{"Pot să mănânc sticlă"}},
+	{"utf-16be", "utf-8", []string{"Pot să mănânc sticlă", "și ea nu mă rănește."}},
+
+	{"utf-16le", "utf-16be", []string{""}},
+	{"utf-16le", "utf-16be", []string{"I can"}},
+	{"utf-16le", "utf-16be", []string{"I can", "eat glass"}},
+	{"utf-16le", "utf-16be", []string{"काचं शक्नोम्यत्तुम् ।"}},
+	{"utf-16le", "utf-16be", []string{"काचं शक्नोम्यत्तुम् ।", "नोपहिनस्ति माम् ॥"}},
+
+	{"big5", "utf-8", []string{"我能吞下玻", "璃而不傷身體。"}},
+	{"gb18030", "utf-16", []string{"我能吞下玻璃", "而不傷身。體"}},
+	{"euc-kr", "plain", []string{" 나는 유리를 먹을 수 있어요.", " 그래도 아프지 않아요"}},
+	{"euc-jp", "plain", []string{"私はガラスを食べられます。", "それは私を傷つけません。"}},
+	{"euc-jp", "plain", []string{"\u0001234", "\u0000", "\u3453"}},
 }
 
 func TestReaderEncodings(t *testing.T) {
@@ -132,6 +171,61 @@ func TestReaderEncodings(t *testing.T) {
 			assert.Equal(t, expectedCount[i], byteCounts[i])
 		}
 	}
+}
+
+func TestReaderEncodingErrorss(t *testing.T) {
+	for _, test := range testsError {
+		t.Logf("test encoding %s decoded with %s", test.encoding, test.decoder)
+
+		encodedBuffer, encoderCodec := setupCodec(t, test.encoding)
+		if encodedBuffer == nil || encoderCodec == nil {
+			continue
+		}
+		_, decoderCodec := setupCodec(t, test.decoder)
+		if decoderCodec == nil {
+			continue
+		}
+
+		// write with encoding to buffer
+		writer := transform.NewWriter(encodedBuffer, encoderCodec.NewEncoder())
+		var expectedCount []int
+		for _, line := range test.strings {
+			writer.Write([]byte(line))
+			writer.Write([]byte{'\n'})
+			expectedCount = append(expectedCount, encodedBuffer.Len())
+		}
+
+		// create line reader
+		reader, err := New(encodedBuffer, decoderCodec, 1024)
+		if err != nil {
+			t.Errorf("failed to initialize reader: %v", err)
+			continue
+		}
+
+		// read decodec lines from buffer
+		for {
+			_, _, err := reader.Next()
+			if err == nil {
+				t.Errorf("no decoding error was returned during decoding")
+			}
+			if err == io.EOF {
+				t.Logf("EOF returned by reader")
+				break
+			}
+		}
+	}
+}
+
+func setupCodec(t *testing.T, enc string) (*bytes.Buffer, encoding.Encoding) {
+	factory, ok := encoding.FindEncoding(enc)
+	if !ok {
+		t.Errorf("can not find encoding '%v'", enc)
+		return nil, nil
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	codec, _ := factory(buffer)
+	return buffer, codec
 }
 
 func TestReadSingleLongLine(t *testing.T) {
