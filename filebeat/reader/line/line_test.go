@@ -173,7 +173,7 @@ func TestReaderEncodings(t *testing.T) {
 	}
 }
 
-func TestReaderEncodingErrorss(t *testing.T) {
+func TestReaderEncodingErrors(t *testing.T) {
 	for _, test := range testsError {
 		t.Logf("test encoding %s decoded with %s", test.encoding, test.decoder)
 
@@ -198,20 +198,49 @@ func TestReaderEncodingErrorss(t *testing.T) {
 		// create line reader
 		reader, err := New(encodedBuffer, decoderCodec, 1024)
 		if err != nil {
-			t.Errorf("failed to initialize reader: %v", err)
+			t.Errorf("  failed to initialize reader: %v", err)
 			continue
 		}
 
 		// read decodec lines from buffer
+		var readLines []string
+		var byteCounts []int
+		current := 0
 		for {
-			_, _, err := reader.Next()
+			bytes, sz, err := reader.Next()
 			if err == nil {
-				t.Errorf("no decoding error was returned during decoding")
+				t.Errorf("  no decoding error was returned during decoding")
+			} else if err == io.EOF {
+				t.Logf("  EOF returned by reader")
+				break
+			} else {
+				t.Logf("  >>> error returned by reader: %v", err)
+
 			}
-			if err == io.EOF {
-				t.Logf("EOF returned by reader")
+
+			if sz > 0 {
+				readLines = append(readLines, string(bytes[:len(bytes)-1]))
+			}
+
+			if err != nil {
 				break
 			}
+
+			current += sz
+			byteCounts = append(byteCounts, current)
+		}
+
+		// validate lines and byte offsets
+		if len(test.strings) != len(readLines) {
+			t.Errorf("  number of lines mismatch (expected=%v actual=%v)",
+				len(test.strings), len(readLines))
+			continue
+		}
+		for i := range test.strings {
+			expected := test.strings[i]
+			actual := readLines[i]
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expectedCount[i], byteCounts[i])
 		}
 	}
 }
