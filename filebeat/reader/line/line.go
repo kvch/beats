@@ -18,6 +18,8 @@
 package line
 
 import (
+	"errors"
+	"fmt"
 	"io"
 
 	"golang.org/x/text/encoding"
@@ -33,6 +35,10 @@ import (
 type Reader struct {
 	in *decoderScanner
 }
+
+var (
+	ErrEndOfLine = errors.New("end of line")
+)
 
 // New creates a new reader object
 func New(input io.Reader, codec encoding.Encoding, bufferSize int) (*Reader, error) {
@@ -76,22 +82,35 @@ func newLineReader(reader io.Reader, codec encoding.Encoding, bufferSize int) (*
 func (l *lineReader) Read(buf []byte) (int, error) {
 	idx := l.buffer.Index(l.nl)
 
-	if !isNewLine(idx) {
-		buf := make([]byte, l.bufferSize)
-		n, err := l.reader.Read(buf)
+	var err error
+	for !isNewLine(idx) {
+		b := make([]byte, l.bufferSize)
+		n, err := l.reader.Read(b)
+		if n == 0 {
+			return 0, nil
+		}
+		l.buffer.Append(b[:n])
+
 		if err != nil {
 			return 0, err
 		}
-		l.buffer.Append(buf[:n])
-
 		idx = l.buffer.Index(l.nl)
 	}
 
-	line, err := l.buffer.CollectUntil(l.nl)
+	until := idx + 1
+	if idx > l.bufferSize {
+		until = l.bufferSize
+	}
+
+	line, err := l.buffer.Collect(until)
 	if err != nil {
 		return 0, err
 	}
-	return copy(buf, line), nil
+
+	if l.buffer.Len() == 0 {
+		err = ErrEndOfLine
+	}
+	return copy(buf, line), err
 }
 
 func isNewLine(idx int) bool {
@@ -100,6 +119,7 @@ func isNewLine(idx int) bool {
 
 type decoderScanner struct {
 	reader     io.Reader
+	buffer     *streambuf.Buffer
 	decoder    transform.Transformer
 	bufferSize int
 	byteCount  int
@@ -110,35 +130,53 @@ func newDecoderScanner(reader io.Reader, codec encoding.Encoding, bufferSize int
 		reader:     reader,
 		decoder:    codec.NewDecoder(),
 		bufferSize: bufferSize,
+		buffer:     streambuf.New(nil),
 		byteCount:  0,
 	}
 }
 
 func (d *decoderScanner) Scan() ([]byte, int, error) {
-	buf := make([]byte, d.bufferSize)
-	n, err := d.reader.Read(buf)
+	for {
+		buf := make([]byte, d.bufferSize)
+		n, err := d.reader.Read(buf)
+		if n == 0 {
+			break
+		}
+		d.buffer.Append(buf[:n])
+		if err != nil {
+			if err == ErrEndOfLine {
+				break
+			}
+			return nil, 0, err
+		}
+	}
+
+	ss, err := d.buffer.Collect(d.buffer.Len())
 	if err != nil {
 		return nil, 0, err
 	}
-
-	return transform.Bytes(d.decoder, buf[:n])
+	d.buffer.Reset()
+	return transform.Bytes(d.decoder, ss)
 }
 
 // Next returns a new decoded line from the input file
 func (r *Reader) Next() ([]byte, int, error) {
-	// This loop is need in case advance detects an line ending which turns out
-	// not to be one when decoded. If that is the case, reading continues.
-	for {
-		// read next 'potential' line from input buffer/reader
-		buf, n, err := r.in.Scan()
-		if err != nil {
-			return nil, 0, err
-		}
-
-		if buf[len(buf)-1] == '\n' {
-			return buf, n, err
-		}
-
-		logp.Debug("line", "Line ending char found which wasn't one: %s", buf[len(buf)-1])
+	// read next 'potential' line from input buffer/reader
+	buf, n, err := r.in.Scan()
+	logp.Info("%s, %d, %v", buf[:n], n, err)
+	if err != nil {
+		return nil, 0, err
 	}
+
+	if n == 0 {
+		return nil, 0, streambuf.ErrNoMoreBytes
+	}
+
+	if buf[n-1] == '\n' {
+		return buf, n, err
+	}
+
+	logp.Debug("line", "Line ending char found which wasn't one: '%s'", string(buf[len(buf)-1]))
+
+	return nil, 0, fmt.Errorf("line encoding char found which wasn't one: '%v'", string(buf[len(buf)-1]))
 }

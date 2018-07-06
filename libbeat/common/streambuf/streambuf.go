@@ -395,7 +395,7 @@ func (b *Buffer) IndexFrom(from int, seq []byte) int {
 		return -1
 	}
 
-	return idx + from + b.mark
+	return idx
 }
 
 // IndexByte returns offset of byte in unprocessed buffer.
