@@ -36,6 +36,27 @@ const (
 	CURSOR_FILE = ".journalbeat_position"
 )
 
+var (
+	journaldEventFields = map[string]string{
+		sdjournal.SD_JOURNAL_FIELD_CMDLINE:           "process.args",
+		sdjournal.SD_JOURNAL_FIELD_CODE_FILE:         "code.file",
+		sdjournal.SD_JOURNAL_FIELD_CODE_FUNC:         "code.func",
+		sdjournal.SD_JOURNAL_FIELD_CODE_LINE:         "code.line",
+		sdjournal.SD_JOURNAL_FIELD_GID:               "process.uid",
+		sdjournal.SD_JOURNAL_FIELD_PID:               "process.pid",
+		sdjournal.SD_JOURNAL_FIELD_PRIORITY:          "syslog.priority",
+		sdjournal.SD_JOURNAL_FIELD_SYSLOG_FACILITY:   "syslog.facility",
+		sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "syslog.facility_label",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_CGROUP:    "sytemd.cgroup",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_OWNER_UID: "sytemd.owner_uid",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_SESSION:   "sytemd.session",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_SLICE:     "sytemd.slice",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "sytemd.unit",
+		sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "sytemd.user_unit",
+		sdjournal.SD_JOURNAL_FIELD_UID:               "process.uid",
+	}
+)
+
 type Config struct {
 	Path          string
 	MaxBackoff    time.Duration
@@ -177,10 +198,19 @@ func (r *Reader) readUntilNotNull(entries chan<- *beat.Event) error {
 
 func toEvent(entry *sdjournal.JournalEntry) *beat.Event {
 	fields := common.MapStr{}
+	for journalKey, eventKey := range journaldEventFields {
+		if entry.Fields[journalKey] != "" {
+			fields.Put(eventKey, entry.Fields[journalKey])
+		}
+	}
+
+	original := common.MapStr{}
 	for k, v := range entry.Fields {
 		key := strings.TrimLeft(strings.ToLower(k), "_")
-		fields[key] = v
+		original[key] = v
 	}
+
+	fields["original"] = original
 	event := beat.Event{
 		Timestamp: time.Now(),
 		Fields:    fields,
