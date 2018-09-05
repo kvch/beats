@@ -3,8 +3,8 @@
 ############################# Journalbeat ######################################
 
 journalbeat:
-  # Defines how often an event is sent to the output
-  period: 1s
+  paths:
+    - system.journal
 
 #================================ General =====================================
 

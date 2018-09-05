@@ -18,7 +18,6 @@
 package reader
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -51,7 +50,7 @@ type Reader struct {
 	done    chan struct{}
 }
 
-func New(c Config) (*Reader, error) {
+func New(c Config, done chan struct{}) (*Reader, error) {
 	f, err := os.Stat(c.Path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open file")
@@ -76,10 +75,11 @@ func New(c Config) (*Reader, error) {
 		j:       j,
 		changes: make(chan int),
 		config:  c,
+		done:    done,
 	}, nil
 }
 
-func NewLocal(c Config) (*Reader, error) {
+func NewLocal(c Config, done chan struct{}) (*Reader, error) {
 	j, err := sdjournal.NewJournal()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open local journal")
@@ -90,6 +90,7 @@ func NewLocal(c Config) (*Reader, error) {
 		j:       j,
 		changes: make(chan int),
 		config:  c,
+		done:    done,
 	}, nil
 }
 
@@ -163,7 +164,7 @@ func (r *Reader) readUntilNotNull(entries chan<- *beat.Event) error {
 		if err != nil {
 			return err
 		}
-		event := getEvent(entry)
+		event := toEvent(entry)
 		entries <- event
 
 		n, err = r.j.Next()
@@ -174,7 +175,7 @@ func (r *Reader) readUntilNotNull(entries chan<- *beat.Event) error {
 	return nil
 }
 
-func getEvent(entry *sdjournal.JournalEntry) *beat.Event {
+func toEvent(entry *sdjournal.JournalEntry) *beat.Event {
 	fields := common.MapStr{}
 	for k, v := range entry.Fields {
 		key := strings.TrimLeft(strings.ToLower(k), "_")
@@ -184,7 +185,6 @@ func getEvent(entry *sdjournal.JournalEntry) *beat.Event {
 		Timestamp: time.Now(),
 		Fields:    fields,
 	}
-	fmt.Println("%s", event.Fields["message"])
 	return &event
 }
 

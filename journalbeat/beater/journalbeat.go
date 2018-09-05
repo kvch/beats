@@ -29,14 +29,11 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 
 	client, err := b.Publisher.Connect()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	done := make(chan struct{})
-	i, err := input.New(config, client, done)
-	if err != nil {
-		return nil, err
-	}
+	i := input.New(config, client, done)
 
 	bt := &Journalbeat{
 		input:  i,
@@ -53,7 +50,7 @@ func (bt *Journalbeat) Run(b *beat.Beat) error {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go runInput(&wg)
+	go bt.runInput(&wg)
 	wg.Wait()
 
 	return nil

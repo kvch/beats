@@ -39,7 +39,7 @@ func New(c config.Config, client beat.Client, done chan struct{}) *Input {
 			MaxBackoff:    c.MaxBackoff,
 			BackoffFactor: c.BackoffFactor,
 		}
-		r, err := reader.NewLocal(cfg)
+		r, err := reader.NewLocal(cfg, done)
 		if err != nil {
 			logp.Debug("input", "Error creating reader: %v", err)
 			return nil
@@ -54,11 +54,12 @@ func New(c config.Config, client beat.Client, done chan struct{}) *Input {
 			MaxBackoff:    c.MaxBackoff,
 			BackoffFactor: c.BackoffFactor,
 		}
-		r, err := reader.New(cfg)
+		r, err := reader.New(cfg, done)
 		if err != nil {
 			logp.Debug("input", "Error creating reader: %v", err)
 			continue
 		}
+		readers = append(readers, r)
 	}
 
 	return &Input{
@@ -74,8 +75,10 @@ func (i *Input) Run() {
 		case <-i.done:
 			return
 		default:
-			for e := range i.readers.Follow() {
-				i.client.Publish(*e)
+			for _, r := range i.readers {
+				for e := range r.Follow() {
+					i.client.Publish(*e)
+				}
 			}
 		}
 	}
