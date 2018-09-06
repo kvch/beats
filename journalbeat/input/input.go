@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/elastic/beats/journalbeat/config"
 	"github.com/elastic/beats/journalbeat/reader"
 	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 )
 
@@ -37,6 +37,10 @@ type Config struct {
 	Matches map[string]string `config:"matches"`
 	Seek    string            `config:"seek"`
 }
+
+var (
+	DefaultConfig = Config{}
+)
 
 func (c *Config) Validate() error {
 	correctSeek := false
@@ -56,17 +60,22 @@ func (c *Config) Validate() error {
 type Input struct {
 	readers []*reader.Reader
 	done    chan struct{}
-	config  config.Config
+	config  Config
 	client  beat.Client
 }
 
-func New(c config.Config, client beat.Client, done chan struct{}) *Input {
+func New(c *common.Config, client beat.Client, done chan struct{}) *Input {
+	config := DefaultConfig
+	if err := c.Unpack(&config); err != nil {
+		// TODO
+		return nil
+	}
 	var readers []*reader.Reader
-	if len(c.Paths) == 0 {
+	if len(config.Paths) == 0 {
 		cfg := reader.Config{
-			Backoff:       c.Backoff,
-			MaxBackoff:    c.MaxBackoff,
-			BackoffFactor: c.BackoffFactor,
+			Backoff:       config.Backoff,
+			MaxBackoff:    config.MaxBackoff,
+			BackoffFactor: config.BackoffFactor,
 		}
 		r, err := reader.NewLocal(cfg, done)
 		if err != nil {
@@ -76,12 +85,12 @@ func New(c config.Config, client beat.Client, done chan struct{}) *Input {
 		readers = append(readers, r)
 	}
 
-	for _, p := range c.Paths {
+	for _, p := range config.Paths {
 		cfg := reader.Config{
 			Path:          p,
-			Backoff:       c.Backoff,
-			MaxBackoff:    c.MaxBackoff,
-			BackoffFactor: c.BackoffFactor,
+			Backoff:       config.Backoff,
+			MaxBackoff:    config.MaxBackoff,
+			BackoffFactor: config.BackoffFactor,
 		}
 		r, err := reader.New(cfg, done)
 		if err != nil {
@@ -95,6 +104,7 @@ func New(c config.Config, client beat.Client, done chan struct{}) *Input {
 		readers: readers,
 		done:    done,
 		client:  client,
+		config:  config,
 	}
 }
 

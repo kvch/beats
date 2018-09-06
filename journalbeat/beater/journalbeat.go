@@ -33,10 +33,19 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	}
 
 	done := make(chan struct{})
-	i := input.New(config, client, done)
+
+	var inputs []*input.Input
+	for _, c := range config.Inputs {
+		i := input.New(c, client, done)
+		// TODO
+		if i == nil {
+			continue
+		}
+		inputs = append(inputs, i)
+	}
 
 	bt := &Journalbeat{
-		input:  i,
+		inputs: inputs,
 		done:   done,
 		config: config,
 		client: client,
@@ -49,16 +58,18 @@ func (bt *Journalbeat) Run(b *beat.Beat) error {
 	defer logp.Info("journalbeat is stopping")
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go bt.runInput(&wg)
+	for _, i := range bt.inputs {
+		wg.Add(1)
+		go bt.runInput(i, &wg)
+	}
 	wg.Wait()
 
 	return nil
 }
 
-func (bt *Journalbeat) runInput(wg *sync.WaitGroup) {
+func (bt *Journalbeat) runInput(i *input.Input, wg *sync.WaitGroup) {
 	defer wg.Done()
-	bt.input.Run()
+	i.Run()
 }
 
 func (bt *Journalbeat) Stop() {
