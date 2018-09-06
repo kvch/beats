@@ -27,15 +27,15 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		return nil, fmt.Errorf("Error reading config file: %v", err)
 	}
 
-	client, err := b.Publisher.Connect()
-	if err != nil {
-		return nil, err
-	}
-
 	done := make(chan struct{})
 
 	var inputs []*input.Input
 	for _, c := range config.Inputs {
+		client, err := b.Publisher.Connect()
+		if err != nil {
+			return nil, err
+		}
+
 		i := input.New(c, client, done)
 		// TODO
 		if i == nil {
@@ -48,7 +48,6 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		inputs: inputs,
 		done:   done,
 		config: config,
-		client: client,
 	}
 	return bt, nil
 }
