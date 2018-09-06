@@ -13,7 +13,7 @@ import (
 )
 
 type Journalbeat struct {
-	input  *input.Input
+	inputs []*input.Input
 	done   chan struct{}
 	config config.Config
 

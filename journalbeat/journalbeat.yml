@@ -2,9 +2,10 @@
 
 ############################# Journalbeat ######################################
 
-journalbeat:
-  paths:
-    - system.journal
+journalbeat.inputs:
+- paths:
+   - system.journal
+  seek: head, tail, cursor
 
 #================================ General =====================================
 

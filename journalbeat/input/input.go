@@ -18,11 +18,40 @@
 package input
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/elastic/beats/journalbeat/config"
 	"github.com/elastic/beats/journalbeat/reader"
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/logp"
 )
+
+type Config struct {
+	Paths []string `config:"paths"`
+
+	Backoff       time.Duration `config:"backoff" validate:"min=0,nonzero"`
+	BackoffFactor int           `config:"backoff_factor" validate:"min=1"`
+	MaxBackoff    time.Duration `config:"max_backoff" validate:"min=0,nonzero"`
+
+	Matches map[string]string `config:"matches"`
+	Seek    string            `config:"seek"`
+}
+
+func (c *Config) Validate() error {
+	correctSeek := false
+	for _, s := range []string{"cursor", "head", "tail"} {
+		if c.Seek == s {
+			correctSeek = true
+		}
+	}
+
+	if !correctSeek {
+		return fmt.Errorf("incorrect value for seek: %s. possible values: cursor, head, tail", c.Seek)
+	}
+
+	return nil
+}
 
 type Input struct {
 	readers []*reader.Reader
