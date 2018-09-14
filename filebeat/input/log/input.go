@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/elastic/beats/filebeat/channel"
@@ -33,6 +31,7 @@ import (
 	"github.com/elastic/beats/filebeat/util"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/common/atomic"
+	"github.com/elastic/beats/libbeat/filenotify"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/monitoring"
 )
@@ -68,6 +67,8 @@ type Input struct {
 	done          chan struct{}
 	numHarvesters atomic.Uint32
 	meta          map[string]string
+	scanner       *filenotify.Scanner
+	eventConsumer chan filenotify.Event
 }
 
 // NewInput instantiates a new Log
@@ -99,25 +100,37 @@ func NewInput(
 	}
 
 	p := &Input{
-		config:      defaultConfig,
-		cfg:         cfg,
-		harvesters:  harvester.NewRegistry(),
-		outlet:      out,
-		stateOutlet: stateOut,
-		states:      file.NewStates(),
-		done:        context.Done,
-		meta:        meta,
+		config:        defaultConfig,
+		cfg:           cfg,
+		harvesters:    harvester.NewRegistry(),
+		outlet:        out,
+		stateOutlet:   stateOut,
+		states:        file.NewStates(),
+		done:          context.Done,
+		meta:          meta,
+		eventConsumer: make(chan filenotify.Event),
 	}
 
 	if err := cfg.Unpack(&p.config); err != nil {
 		return nil, err
 	}
-	if err := p.config.resolveRecursiveGlobs(); err != nil {
-		return nil, fmt.Errorf("Failed to resolve recursive globs in config: %v", err)
+	// create a filemonitor
+	scannerCfg := filenotify.Config{
+		Paths:         p.config.Paths,
+		ScanFrequency: p.config.ScanFrequency,
+		Symlinks:      p.config.Symlinks,
+		ExcludeFiles:  p.config.ExcludeFiles,
+		IgnoreOlder:   p.config.IgnoreOlder,
+		RecursiveGlob: p.config.RecursiveGlob,
+		ScanOrder:     p.config.ScanOrder,
+		ScanSort:      p.config.ScanSort,
 	}
-	if err := p.config.normalizeGlobPatterns(); err != nil {
-		return nil, fmt.Errorf("Failed to normalize globs patterns: %v", err)
+
+	s, err := filenotify.New(scannerCfg, p.eventConsumer, p.done)
+	if err != nil {
+		return nil, err
 	}
+	p.scanner = s
 
 	// Create empty harvester to check if configs are fine
 	// TODO: Do config validation instead
@@ -169,10 +182,48 @@ func (p *Input) loadStates(states []file.State) error {
 	return nil
 }
 
+// matchesFile returns true in case the given filePath is part of this input, means matches its glob patterns
+func (p *Input) matchesFile(filePath string) bool {
+	// Path is cleaned to ensure we always compare clean paths
+	filePath = filepath.Clean(filePath)
+
+	for _, glob := range p.config.Paths {
+
+		// Glob is cleaned to ensure we always compare clean paths
+		glob = filepath.Clean(glob)
+
+		// Evaluate if glob matches filePath
+		match, err := filepath.Match(glob, filePath)
+		if err != nil {
+			logp.Debug("input", "Error matching glob: %s", err)
+			continue
+		}
+
+		// Check if file is not excluded
+		if match && !p.scanner.IsFileExcluded(filePath) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesMeta returns true in case the given meta is equal to the one of this input, false if not
+func (p *Input) matchesMeta(meta map[string]string) bool {
+	if len(meta) != len(p.meta) {
+		return false
+	}
+
+	for k, v := range p.meta {
+		if meta[k] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Run runs the input
 func (p *Input) Run() {
-	logp.Debug("input", "Start next scan")
-
 	// TailFiles is like ignore_older = 1ns and only on startup
 	if p.config.TailFiles {
 		ignoreOlder := p.config.IgnoreOlder
@@ -186,7 +237,9 @@ func (p *Input) Run() {
 			p.config.TailFiles = false
 		}()
 	}
-	p.scan()
+
+	go p.scanner.Run()
+	go p.readEvents()
 
 	// It is important that a first scan is run before cleanup to make sure all new states are read first
 	if p.config.CleanInactive > 0 || p.config.CleanRemoved {
@@ -234,164 +287,86 @@ func (p *Input) removeState(state file.State) {
 	}
 }
 
-// getFiles returns all files which have to be harvested
-// All globs are expanded and then directory and excluded files are removed
-func (p *Input) getFiles() map[string]os.FileInfo {
-	paths := map[string]os.FileInfo{}
-
-	for _, path := range p.config.Paths {
-		matches, err := filepath.Glob(path)
-		if err != nil {
-			logp.Err("glob(%s) failed: %v", path, err)
-			continue
-		}
-
-	OUTER:
-		// Check any matched files to see if we need to start a harvester
-		for _, file := range matches {
-
-			// check if the file is in the exclude_files list
-			if p.isFileExcluded(file) {
-				logp.Debug("input", "Exclude file: %s", file)
-				continue
-			}
-
-			// Fetch Lstat File info to detected also symlinks
-			fileInfo, err := os.Lstat(file)
+// Scan starts a scanGlob for each provided path/glob
+func (p *Input) readEvents() {
+	for {
+		select {
+		case <-p.done:
+			return
+		case e := <-p.eventConsumer:
+			logp.Info("~~~~ >>>>>>>>> NEW EVENT %v", e)
+			newState, err := getFileState(e.Path, e.Info, p)
 			if err != nil {
-				logp.Debug("input", "lstat(%s) failed: %s", file, err)
-				continue
+				logp.Err("Skipping file %s due to error %s", e.Path, err)
 			}
 
-			if fileInfo.IsDir() {
-				logp.Debug("input", "Skipping directory: %s", file)
-				continue
-			}
+			// Load last state
+			lastState := p.states.FindPrevious(newState)
 
-			isSymlink := fileInfo.Mode()&os.ModeSymlink > 0
-			if isSymlink && !p.config.Symlinks {
-				logp.Debug("input", "File %s skipped as it is a symlink.", file)
-				continue
-			}
-
-			// Fetch Stat file info which fetches the inode. In case of a symlink, the original inode is fetched
-			fileInfo, err = os.Stat(file)
-			if err != nil {
-				logp.Debug("input", "stat(%s) failed: %s", file, err)
-				continue
-			}
-
-			// If symlink is enabled, it is checked that original is not part of same input
-			// It original is harvested by other input, states will potentially overwrite each other
-			if p.config.Symlinks {
-				for _, finfo := range paths {
-					if os.SameFile(finfo, fileInfo) {
-						logp.Info("Same file found as symlink and originap. Skipping file: %s", file)
-						continue OUTER
-					}
+			// Ignores all files which fall under ignore_older
+			if p.isIgnoreOlder(newState) {
+				err := p.handleIgnoreOlder(lastState, newState)
+				if err != nil {
+					logp.Err("Updating ignore_older state error: %s", err)
 				}
+				continue
 			}
 
-			paths[file] = fileInfo
-		}
-	}
-
-	return paths
-}
-
-// matchesFile returns true in case the given filePath is part of this input, means matches its glob patterns
-func (p *Input) matchesFile(filePath string) bool {
-	// Path is cleaned to ensure we always compare clean paths
-	filePath = filepath.Clean(filePath)
-
-	for _, glob := range p.config.Paths {
-
-		// Glob is cleaned to ensure we always compare clean paths
-		glob = filepath.Clean(glob)
-
-		// Evaluate if glob matches filePath
-		match, err := filepath.Match(glob, filePath)
-		if err != nil {
-			logp.Debug("input", "Error matching glob: %s", err)
-			continue
-		}
-
-		// Check if file is not excluded
-		if match && !p.isFileExcluded(filePath) {
-			return true
-		}
-	}
-	return false
-}
-
-// matchesMeta returns true in case the given meta is equal to the one of this input, false if not
-func (p *Input) matchesMeta(meta map[string]string) bool {
-	if len(meta) != len(p.meta) {
-		return false
-	}
-
-	for k, v := range p.meta {
-		if meta[k] != v {
-			return false
-		}
-	}
-
-	return true
-}
-
-type FileSortInfo struct {
-	info os.FileInfo
-	path string
-}
-
-func getSortInfos(paths map[string]os.FileInfo) []FileSortInfo {
-	sortInfos := make([]FileSortInfo, 0, len(paths))
-	for path, info := range paths {
-		sortInfo := FileSortInfo{info: info, path: path}
-		sortInfos = append(sortInfos, sortInfo)
-	}
-
-	return sortInfos
-}
-
-func getSortedFiles(scanOrder string, scanSort string, sortInfos []FileSortInfo) ([]FileSortInfo, error) {
-	var sortFunc func(i, j int) bool
-	switch scanSort {
-	case "modtime":
-		switch scanOrder {
-		case "asc":
-			sortFunc = func(i, j int) bool {
-				return sortInfos[i].info.ModTime().Before(sortInfos[j].info.ModTime())
+			// Decides if previous state exists
+			if lastState.IsEmpty() {
+				logp.Debug("input", "Start harvester for new file: %s", newState.Source)
+				err := p.startHarvester(newState, 0)
+				if err == errHarvesterLimit {
+					logp.Debug("input", harvesterErrMsg, newState.Source, err)
+					continue
+				}
+				if err != nil {
+					logp.Err(harvesterErrMsg, newState.Source, err)
+				}
+			} else {
+				p.harvestExistingFile(newState, lastState)
 			}
-		case "desc":
-			sortFunc = func(i, j int) bool {
-				return sortInfos[i].info.ModTime().After(sortInfos[j].info.ModTime())
-			}
-		default:
-			return nil, fmt.Errorf("Unexpected value for scan.order: %v", scanOrder)
-		}
-	case "filename":
-		switch scanOrder {
-		case "asc":
-			sortFunc = func(i, j int) bool {
-				return strings.Compare(sortInfos[i].info.Name(), sortInfos[j].info.Name()) < 0
-			}
-		case "desc":
-			sortFunc = func(i, j int) bool {
-				return strings.Compare(sortInfos[i].info.Name(), sortInfos[j].info.Name()) > 0
-			}
-		default:
-			return nil, fmt.Errorf("Unexpected value for scan.order: %v", scanOrder)
-		}
-	default:
-		return nil, fmt.Errorf("Unexpected value for scan.sort: %v", scanSort)
-	}
 
-	if sortFunc != nil {
-		sort.Slice(sortInfos, sortFunc)
+		}
 	}
+	//var sortInfos []FileSortInfo
+	//var files []string
 
-	return sortInfos, nil
+	//paths := p.getFiles()
+
+	//var err error
+
+	//if p.config.ScanSort != "" {
+	//	sortInfos, err = getSortedFiles(p.config.ScanOrder, p.config.ScanSort, getSortInfos(paths))
+	//	if err != nil {
+	//		logp.Err("Failed to sort files during scan due to error %s", err)
+	//	}
+	//}
+
+	//if sortInfos == nil {
+	//	files = getKeys(paths)
+	//}
+
+	//for i := 0; i < len(paths); i++ {
+
+	//	var path string
+	//	var info os.FileInfo
+
+	//	if sortInfos == nil {
+	//		path = files[i]
+	//		info = paths[path]
+	//	} else {
+	//		path = sortInfos[i].path
+	//		info = sortInfos[i].info
+	//	}
+
+	//	select {
+	//	case <-p.done:
+	//		logp.Info("Scan aborted because input stopped.")
+	//		return
+	//	default:
+	//	}
+
 }
 
 func getFileState(path string, info os.FileInfo, p *Input) (file.State, error) {
@@ -403,6 +378,7 @@ func getFileState(path string, info os.FileInfo, p *Input) (file.State, error) {
 	}
 	logp.Debug("input", "Check file for harvesting: %s", absolutePath)
 	// Create new state for comparison
+	logp.Info("%v", info)
 	newState := file.NewState(info, absolutePath, p.config.Type, p.meta)
 	return newState, nil
 }
@@ -413,80 +389,6 @@ func getKeys(paths map[string]os.FileInfo) []string {
 		files = append(files, file)
 	}
 	return files
-}
-
-// Scan starts a scanGlob for each provided path/glob
-func (p *Input) scan() {
-	var sortInfos []FileSortInfo
-	var files []string
-
-	paths := p.getFiles()
-
-	var err error
-
-	if p.config.ScanSort != "" {
-		sortInfos, err = getSortedFiles(p.config.ScanOrder, p.config.ScanSort, getSortInfos(paths))
-		if err != nil {
-			logp.Err("Failed to sort files during scan due to error %s", err)
-		}
-	}
-
-	if sortInfos == nil {
-		files = getKeys(paths)
-	}
-
-	for i := 0; i < len(paths); i++ {
-
-		var path string
-		var info os.FileInfo
-
-		if sortInfos == nil {
-			path = files[i]
-			info = paths[path]
-		} else {
-			path = sortInfos[i].path
-			info = sortInfos[i].info
-		}
-
-		select {
-		case <-p.done:
-			logp.Info("Scan aborted because input stopped.")
-			return
-		default:
-		}
-
-		newState, err := getFileState(path, info, p)
-		if err != nil {
-			logp.Err("Skipping file %s due to error %s", path, err)
-		}
-
-		// Load last state
-		lastState := p.states.FindPrevious(newState)
-
-		// Ignores all files which fall under ignore_older
-		if p.isIgnoreOlder(newState) {
-			err := p.handleIgnoreOlder(lastState, newState)
-			if err != nil {
-				logp.Err("Updating ignore_older state error: %s", err)
-			}
-			continue
-		}
-
-		// Decides if previous state exists
-		if lastState.IsEmpty() {
-			logp.Debug("input", "Start harvester for new file: %s", newState.Source)
-			err := p.startHarvester(newState, 0)
-			if err == errHarvesterLimit {
-				logp.Debug("input", harvesterErrMsg, newState.Source, err)
-				continue
-			}
-			if err != nil {
-				logp.Err(harvesterErrMsg, newState.Source, err)
-			}
-		} else {
-			p.harvestExistingFile(newState, lastState)
-		}
-	}
 }
 
 // harvestExistingFile continues harvesting a file with a known state if needed
@@ -580,12 +482,6 @@ func (p *Input) handleIgnoreOlder(lastState, newState file.State) error {
 	}
 
 	return nil
-}
-
-// isFileExcluded checks if the given path should be excluded
-func (p *Input) isFileExcluded(file string) bool {
-	patterns := p.config.ExcludeFiles
-	return len(patterns) > 0 && harvester.MatchAny(patterns, file)
 }
 
 // isIgnoreOlder checks if the given state reached ignore_older

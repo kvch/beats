@@ -19,17 +19,14 @@ package log
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/dustin/go-humanize"
 
 	cfg "github.com/elastic/beats/filebeat/config"
 	"github.com/elastic/beats/filebeat/harvester"
-	"github.com/elastic/beats/filebeat/input/file"
 	"github.com/elastic/beats/libbeat/common/cfgwarn"
 	"github.com/elastic/beats/libbeat/common/match"
-	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/reader/multiline"
 	"github.com/elastic/beats/libbeat/reader/readjson"
 )
@@ -187,42 +184,5 @@ func (c *config) Validate() error {
 		}
 	}
 
-	return nil
-}
-
-// resolveRecursiveGlobs expands `**` from the globs in multiple patterns
-func (c *config) resolveRecursiveGlobs() error {
-	if !c.RecursiveGlob {
-		logp.Debug("input", "recursive glob disabled")
-		return nil
-	}
-
-	logp.Debug("input", "recursive glob enabled")
-	var paths []string
-	for _, path := range c.Paths {
-		patterns, err := file.GlobPatterns(path, recursiveGlobDepth)
-		if err != nil {
-			return err
-		}
-		if len(patterns) > 1 {
-			logp.Debug("input", "%q expanded to %#v", path, patterns)
-		}
-		paths = append(paths, patterns...)
-	}
-	c.Paths = paths
-	return nil
-}
-
-// normalizeGlobPatterns calls `filepath.Abs` on all the globs from config
-func (c *config) normalizeGlobPatterns() error {
-	var paths []string
-	for _, path := range c.Paths {
-		pathAbs, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("Failed to get the absolute path for %s: %v", path, err)
-		}
-		paths = append(paths, pathAbs)
-	}
-	c.Paths = paths
 	return nil
 }
