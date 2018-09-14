@@ -295,21 +295,23 @@ func (p *Input) readEvents() {
 			return
 		case e := <-p.eventConsumer:
 			logp.Info("~~~~ >>>>>>>>> NEW EVENT %v", e)
+
 			newState, err := getFileState(e.Path, e.Info, p)
 			if err != nil {
 				logp.Err("Skipping file %s due to error %s", e.Path, err)
 			}
-
-			// Load last state
 			lastState := p.states.FindPrevious(newState)
 
-			// Ignores all files which fall under ignore_older
-			if p.isIgnoreOlder(newState) {
+			switch e.Change {
+			case filenotify.Inactive:
+				// Ignores all files which fall under ignore_older
 				err := p.handleIgnoreOlder(lastState, newState)
 				if err != nil {
 					logp.Err("Updating ignore_older state error: %s", err)
 				}
 				continue
+			case filenotify.Removed:
+
 			}
 
 			// Decides if previous state exists

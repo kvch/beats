@@ -37,10 +37,14 @@ const (
 	Append
 	// Truncated indicates that a file has been truncated.
 	Truncated
-	// Deleted means that the file does not exist under its path.
-	Deleted
+	// Removed means that the file does not exist under its path.
+	Removed
 	// Created indicated that the file has been created.
 	Created
+	// Renamed is returned when the file being read is renamed.
+	Renamed
+	// Inactive means the file has not changed for the configured time in ignore_older.
+	Inactive
 	// ErrorReading means there was an error when checking its state.
 	ErrorReading
 
@@ -210,7 +214,7 @@ func (s *Scanner) notifyConsumer(states map[string]os.FileInfo) {
 			Info:   f2,
 		}
 		if oneExists && !otherExists {
-			e.Change = Deleted
+			e.Change = Removed
 		}
 		if !oneExists && otherExists {
 			e.Change = Created
@@ -224,6 +228,9 @@ func (s *Scanner) notifyConsumer(states map[string]os.FileInfo) {
 					e.Change = Truncated
 				}
 			}
+		}
+		if time.Now().Sub(f2.ModTime()) > s.config.IgnoreOlder {
+			e.Change = Inactive
 		}
 		s.consumer <- e
 	}
