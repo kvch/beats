@@ -311,7 +311,11 @@ func (p *Input) readEvents() {
 				}
 				continue
 			case filenotify.Removed:
-
+				// TODO remove state if clean_removed is set to true
+				continue
+			case filenotify.Truncated:
+			case filenotify.Created:
+			case filenotify.Append:
 			}
 
 			// Decides if previous state exists
