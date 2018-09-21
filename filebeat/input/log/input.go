@@ -251,23 +251,27 @@ func (p *Input) Run() {
 
 	// Marking removed files to be cleaned up. Cleanup happens after next scan to make sure all states are updated first
 	if p.config.CleanRemoved {
-		for _, state := range p.states.GetStates() {
-			// os.Stat will return an error in case the file does not exist
-			stat, err := os.Stat(state.Source)
-			if err != nil {
-				if os.IsNotExist(err) {
-					p.removeState(state)
-					logp.Debug("input", "Remove state for file as file removed: %s", state.Source)
-				} else {
-					logp.Err("input state for %s was not removed: %s", state.Source, err)
-				}
+		p.cleanStatesOfRemoved()
+	}
+}
+
+func (p *Input) cleanStatesOfRemoved() {
+	for _, state := range p.states.GetStates() {
+		// os.Stat will return an error in case the file does not exist
+		stat, err := os.Stat(state.Source)
+		if err != nil {
+			if os.IsNotExist(err) {
+				p.removeState(state)
+				logp.Debug("input", "Remove state for file as file removed: %s", state.Source)
 			} else {
-				// Check if existing source on disk and state are the same. Remove if not the case.
-				newState := file.NewState(stat, state.Source, p.config.Type, p.meta)
-				if !newState.FileStateOS.IsSame(state.FileStateOS) {
-					p.removeState(state)
-					logp.Debug("input", "Remove state for file as file removed or renamed: %s", state.Source)
-				}
+				logp.Err("input state for %s was not removed: %s", state.Source, err)
+			}
+		} else {
+			// Check if existing source on disk and state are the same. Remove if not the case.
+			newState := file.NewState(stat, state.Source, p.config.Type, p.meta)
+			if !newState.FileStateOS.IsSame(state.FileStateOS) {
+				p.removeState(state)
+				logp.Debug("input", "Remove state for file as file removed or renamed: %s", state.Source)
 			}
 		}
 	}
@@ -294,13 +298,15 @@ func (p *Input) readEvents() {
 		case <-p.done:
 			return
 		case e := <-p.eventConsumer:
-			logp.Info("~~~~ >>>>>>>>> NEW EVENT %v", e)
-
-			newState, err := getFileState(e.Path, e.Info, p)
+			newState, err := p.getFileState(e.Path, e.Info)
 			if err != nil {
 				logp.Err("Skipping file %s due to error %s", e.Path, err)
 			}
 			lastState := p.states.FindPrevious(newState)
+
+			logp.Info("~~~~ >>>>>>>>> NEW EVENT %v", e)
+			logp.Info("NEW STATE: %s %v", newState.Id, newState)
+			logp.Info("LAST STATE: %s %v", lastState.Id, lastState)
 
 			switch e.Change {
 			case filenotify.Inactive:
@@ -310,10 +316,13 @@ func (p *Input) readEvents() {
 					logp.Err("Updating ignore_older state error: %s", err)
 				}
 				continue
+
 			case filenotify.Removed:
-				// TODO remove state if clean_removed is set to true
+				p.removeState(lastState)
 				continue
+
 			case filenotify.Truncated:
+				// TODO start reading from the beginning
 			case filenotify.Created:
 			case filenotify.Append:
 			}
@@ -332,7 +341,6 @@ func (p *Input) readEvents() {
 			} else {
 				p.harvestExistingFile(newState, lastState)
 			}
-
 		}
 	}
 	//var sortInfos []FileSortInfo
@@ -375,16 +383,14 @@ func (p *Input) readEvents() {
 
 }
 
-func getFileState(path string, info os.FileInfo, p *Input) (file.State, error) {
-	var err error
-	var absolutePath string
-	absolutePath, err = filepath.Abs(path)
+func (p *Input) getFileState(path string, info os.FileInfo) (file.State, error) {
+	absolutePath, err := filepath.Abs(path)
 	if err != nil {
 		return file.State{}, fmt.Errorf("could not fetch abs path for file %s: %s", absolutePath, err)
 	}
 	logp.Debug("input", "Check file for harvesting: %s", absolutePath)
+
 	// Create new state for comparison
-	logp.Info("%v", info)
 	newState := file.NewState(info, absolutePath, p.config.Type, p.meta)
 	return newState, nil
 }

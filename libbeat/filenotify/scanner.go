@@ -229,7 +229,7 @@ func (s *Scanner) notifyConsumer(states map[string]os.FileInfo) {
 				}
 			}
 		}
-		if time.Now().Sub(f2.ModTime()) > s.config.IgnoreOlder {
+		if time.Now().Sub(f2.ModTime()) > s.config.IgnoreOlder && s.config.IgnoreOlder > 0 {
 			e.Change = Inactive
 		}
 		s.consumer <- e
