@@ -33,7 +33,7 @@ import (
 func init() {
 	mage.BeatDescription = "Journalbeat ships systemd journal entries to Elasticsearch or Logstash."
 
-	// TODO filter platforms
+	mage.Platforms = mage.Platforms.Filter("linux")
 }
 
 // Build builds the Beat binary.
@@ -54,7 +54,7 @@ func BuildGoDaemon() error {
 
 // CrossBuild cross-builds the beat for all target platforms.
 func CrossBuild() error {
-	return mage.CrossBuild()
+	return mage.CrossBuild(mage.TagSuffix("-journalbeat"))
 }
 
 // CrossBuildXPack cross-builds the beat with XPack for all target platforms.

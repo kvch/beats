@@ -78,11 +78,18 @@ func Serially() func(params *crossBuildParams) {
 	}
 }
 
+func TagSuffix(suffix string) func(params *crossBuildParams) {
+	return func(params *crossBuildParams) {
+		params.TagSuffix = suffix
+	}
+}
+
 type crossBuildParams struct {
 	Platforms BuildPlatformList
 	Target    string
 	Serial    bool
 	InDir     string
+	TagSuffix string
 }
 
 // CrossBuild executes a given build target once for each target platform.
@@ -111,7 +118,7 @@ func CrossBuild(options ...CrossBuildOption) error {
 		if !buildPlatform.Flags.CanCrossBuild() {
 			return fmt.Errorf("unsupported cross build platform %v", buildPlatform.Name)
 		}
-		builder := GolangCrossBuilder{buildPlatform.Name, params.Target, params.InDir}
+		builder := GolangCrossBuilder{buildPlatform.Name, params.Target, params.InDir, params.TagSuffix}
 		if params.Serial {
 			if err := builder.Build(); err != nil {
 				return errors.Wrapf(err, "failed cross-building target=%v for platform=%v",
@@ -149,7 +156,7 @@ func buildMage() error {
 	return sh.RunWith(env, "mage", "-f", "-compile", filepath.Join("build", "mage-linux-amd64"))
 }
 
-func crossBuildImage(platform string) (string, error) {
+func crossBuildImage(platform, suffix string) (string, error) {
 	tagSuffix := "main"
 
 	switch {
@@ -169,6 +176,8 @@ func crossBuildImage(platform string) (string, error) {
 		tagSuffix = "main-debian7"
 	}
 
+	tagSuffix += suffix
+
 	goVersion, err := GoVersion()
 	if err != nil {
 		return "", err
@@ -180,9 +189,10 @@ func crossBuildImage(platform string) (string, error) {
 // GolangCrossBuilder executes the specified mage target inside of the
 // associated golang-crossbuild container image for the platform.
 type GolangCrossBuilder struct {
-	Platform string
-	Target   string
-	InDir    string
+	Platform  string
+	Target    string
+	InDir     string
+	TagSuffix string
 }
 
 // Build executes the build inside of Docker.
@@ -208,7 +218,7 @@ func (b GolangCrossBuilder) Build() error {
 	}
 
 	dockerRun := sh.RunCmd("docker", "run")
-	image, err := crossBuildImage(b.Platform)
+	image, err := crossBuildImage(b.Platform, b.TagSuffix)
 	if err != nil {
 		return errors.Wrap(err, "failed to determine golang-crossbuild image tag")
 	}
