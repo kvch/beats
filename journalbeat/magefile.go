@@ -59,7 +59,7 @@ func CrossBuild() error {
 
 // CrossBuildXPack cross-builds the beat with XPack for all target platforms.
 func CrossBuildXPack() error {
-	return mage.CrossBuildXPack()
+	return mage.CrossBuildXPack(mage.TagSuffix("-journalbeat"))
 }
 
 // CrossBuildGoDaemon cross-builds the go-daemon binary using Docker.
