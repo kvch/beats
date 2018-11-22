@@ -27,9 +27,16 @@ import (
 	"github.com/elastic/beats/libbeat/logp"
 )
 
+// Progress contains the size and offset of the file
+type Progress struct {
+	Size   int64
+	Offset int64
+}
+
 // Log contains all log related data
 type Log struct {
 	fs           harvester.Source
+	size         int64
 	offset       int64
 	config       LogConfig
 	lastTimeRead time.Time
@@ -42,6 +49,11 @@ func NewLog(
 	fs harvester.Source,
 	config LogConfig,
 ) (*Log, error) {
+	fi, err := os.Stat(fs.Name())
+	if err != nil {
+		return nil, err
+	}
+
 	var offset int64
 	if seeker, ok := fs.(io.Seeker); ok {
 		var err error
@@ -53,6 +65,7 @@ func NewLog(
 
 	return &Log{
 		fs:           fs,
+		size:         fi.Size(),
 		offset:       offset,
 		config:       config,
 		lastTimeRead: time.Now(),
@@ -177,6 +190,19 @@ func (f *Log) wait() {
 		if f.backoff > f.config.MaxBackoff {
 			f.backoff = f.config.MaxBackoff
 		}
+	}
+}
+
+func (f *Log) Progress() (Progress, error) {
+	fi, err := os.Stat(f.fs.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	f.size = fi.Size()
+	return Progress{
+		Size:   f.size,
+		Offset: f.offset,
 	}
 }
 

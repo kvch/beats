@@ -58,13 +58,6 @@ import (
 )
 
 var (
-	harvesterMetrics = monitoring.Default.NewRegistry("filebeat.harvester")
-
-	harvesterStarted   = monitoring.NewInt(harvesterMetrics, "started")
-	harvesterClosed    = monitoring.NewInt(harvesterMetrics, "closed")
-	harvesterRunning   = monitoring.NewInt(harvesterMetrics, "running")
-	harvesterOpenFiles = monitoring.NewInt(harvesterMetrics, "open_files")
-
 	ErrFileTruncate = errors.New("detected file being truncated")
 	ErrRenamed      = errors.New("file was renamed")
 	ErrRemoved      = errors.New("file was removed")
@@ -101,6 +94,8 @@ type Harvester struct {
 	outletFactory OutletFactory
 	publishState  func(*util.Data) bool
 
+	metrics *monitoring.Registry
+
 	onTerminate func()
 }
 
@@ -127,6 +122,7 @@ func NewHarvester(
 		stopWg:        &sync.WaitGroup{},
 		id:            id,
 		outletFactory: outletFactory,
+		metrics:       monitoring.Default.NewRegistry("filebeat.harvester.reader"),
 	}
 
 	if err := config.Unpack(&h.config); err != nil {
