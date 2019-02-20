@@ -187,13 +187,19 @@ func (t *Template) LoadBytesAndFiles(data []byte, files []string) (common.MapStr
 		return nil, err
 	}
 
-	fields = append(fields, fieldsFromBytes...)
+	fields, err = common.ConcatFields(fields, fieldsFromBytes)
+	if err != nil {
+		return nil, err
+	}
 	for _, file := range files {
 		f, err := common.LoadFieldsYaml(file)
 		if err != nil {
 			return nil, err
 		}
-		fields = append(fields, f...)
+		fields, err = common.ConcatFields(fields, f)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return t.load(fields)
