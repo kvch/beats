@@ -178,6 +178,27 @@ func (t *Template) LoadBytes(data []byte) (common.MapStr, error) {
 	return t.load(fields)
 }
 
+// LoadBytesAndFiles loads the template from a given byte array and list of filepaths
+func (t *Template) LoadBytesAndFiles(data []byte, files []string) (common.MapStr, error) {
+	var fields common.Fields
+
+	fieldsFromBytes, err := loadYamlByte(data)
+	if err != nil {
+		return nil, err
+	}
+
+	fields = append(fields, fieldsFromBytes...)
+	for _, file := range files {
+		f, err := common.LoadFieldsYaml(file)
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, f...)
+	}
+
+	return t.load(fields)
+}
+
 // GetName returns the name of the template
 func (t *Template) GetName() string {
 	return t.name

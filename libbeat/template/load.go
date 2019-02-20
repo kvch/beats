@@ -77,59 +77,93 @@ func (l *Loader) Load() error {
 	// Check if template already exist or should be overwritten
 	exists := l.CheckTemplate(templateName)
 	if !exists || l.config.Overwrite {
-
 		version := l.client.GetVersion()
 		logp.Info("Loading template for Elasticsearch version: %s", version.String())
 		if l.config.Overwrite {
 			logp.Info("Existing template will be overwritten, as overwrite is enabled.")
 		}
 
-		var template map[string]interface{}
-		if l.config.JSON.Enabled {
-			jsonPath := paths.Resolve(paths.Config, l.config.JSON.Path)
-			if _, err := os.Stat(jsonPath); err != nil {
-				return fmt.Errorf("error checking for json template: %s", err)
-			}
-
-			logp.Info("Loading json template from file %s", jsonPath)
-
-			content, err := ioutil.ReadFile(jsonPath)
-			if err != nil {
-				return fmt.Errorf("error reading file. Path: %s, Error: %s", jsonPath, err)
-
-			}
-			err = json.Unmarshal(content, &template)
-			if err != nil {
-				return fmt.Errorf("could not unmarshal json template: %s", err)
-			}
-			// Load fields from path
-		} else if l.config.Fields != "" {
-			logp.Debug("template", "Load fields.yml from file: %s", l.config.Fields)
-
-			fieldsPath := paths.Resolve(paths.Config, l.config.Fields)
-
-			template, err = tmpl.LoadFile(fieldsPath)
-			if err != nil {
-				return fmt.Errorf("error creating template from file %s: %v", fieldsPath, err)
-			}
-		} else {
-			logp.Debug("template", "Load default fields.yml")
-			template, err = tmpl.LoadBytes(l.fields)
-			if err != nil {
-				return fmt.Errorf("error creating template: %v", err)
-			}
+		template, err := l.getTemplate(tmpl)
+		if err != nil {
+			return err
 		}
 
 		err = l.LoadTemplate(templateName, template)
 		if err != nil {
 			return fmt.Errorf("could not load template. Elasticsearch returned: %v. Template is: %s", err, template)
 		}
-
 	} else {
 		logp.Info("Template already exists and will not be overwritten.")
 	}
 
 	return nil
+}
+
+// getTemplate loads a template one of the following way:
+// - load an existing template from a JSON file
+// - generate a template from a fields.yml file
+// - generate a template from the default fields of a Beat coming from fields asset
+// - generate a template from the default fields of a Beat coming from fields asset and user defined fields.yml files
+func (l *Loader) getTemplate(tmpl *Template) (map[string]interface{}, error) {
+	if l.config.JSON.Enabled {
+		return l.getTemplateFromJSON(tmpl)
+	} else if l.config.Fields != "" {
+		return l.getTemplateFromFieldsYml(tmpl)
+	}
+	return l.getTemplateUsingAssets(tmpl)
+}
+
+func (l *Loader) getTemplateFromJSON(tmpl *Template) (map[string]interface{}, error) {
+	jsonPath := paths.Resolve(paths.Config, l.config.JSON.Path)
+	if _, err := os.Stat(jsonPath); err != nil {
+		return nil, fmt.Errorf("error checking for json template: %s", err)
+	}
+
+	logp.Info("Loading json template from file %s", jsonPath)
+
+	content, err := ioutil.ReadFile(jsonPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file. Path: %s, Error: %s", jsonPath, err)
+
+	}
+
+	var template map[string]interface{}
+	err = json.Unmarshal(content, &template)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal json template: %s", err)
+	}
+	return template, nil
+}
+
+func (l *Loader) getTemplateFromFieldsYml(tmpl *Template) (map[string]interface{}, error) {
+	logp.Debug("template", "Load fields.yml from file: %s", l.config.Fields)
+
+	fieldsPath := paths.Resolve(paths.Config, l.config.Fields)
+
+	template, err := tmpl.LoadFile(fieldsPath)
+	if err != nil {
+		return nil, fmt.Errorf("error creating template from file %s: %v", fieldsPath, err)
+	}
+	return template, nil
+}
+
+func (l *Loader) getTemplateUsingAssets(tmpl *Template) (map[string]interface{}, error) {
+	var template map[string]interface{}
+	var err error
+	if len(l.config.CustomFields) == 0 {
+		logp.Debug("template", "Load default fields.yml")
+		template, err = tmpl.LoadBytes(l.fields)
+		if err != nil {
+			return nil, fmt.Errorf("error creating template: %v", err)
+		}
+	} else {
+		logp.Debug("template", "Load default fields.yml with custom fields")
+		template, err = tmpl.LoadBytesAndFiles(l.fields, l.config.CustomFields)
+		if err != nil {
+			return nil, fmt.Errorf("error creating template: %v", err)
+		}
+	}
+	return template, nil
 }
 
 // LoadTemplate loads a template into Elasticsearch overwriting the existing

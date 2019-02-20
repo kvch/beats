@@ -20,11 +20,12 @@ package template
 import "github.com/elastic/beats/libbeat/common"
 
 type TemplateConfig struct {
-	Enabled bool   `config:"enabled"`
-	Name    string `config:"name"`
-	Pattern string `config:"pattern"`
-	Fields  string `config:"fields"`
-	JSON    struct {
+	Enabled      bool     `config:"enabled"`
+	Name         string   `config:"name"`
+	Pattern      string   `config:"pattern"`
+	Fields       string   `config:"fields"`
+	CustomFields []string `config:"custom_fields"`
+	JSON         struct {
 		Enabled bool   `config:"enabled"`
 		Path    string `config:"path"`
 		Name    string `config:"name"`
