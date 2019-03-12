@@ -41,7 +41,7 @@ it can also be configured to read from a file path. See the following example.
   log:
     enabled: true
     var.paths: ["/var/log/haproxy.log"]
-    var.input: "file"
+    input: "file"
 -----
 
 :fileset_ex: log
