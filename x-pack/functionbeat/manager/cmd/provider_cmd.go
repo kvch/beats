@@ -137,6 +137,7 @@ func genPackageCmd() *cobra.Command {
 	return cmd
 }
 
+// TODO
 func genExportFunctionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "function",
