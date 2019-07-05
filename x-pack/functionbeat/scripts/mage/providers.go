@@ -12,6 +12,7 @@ import (
 var (
 	availableProviders = []string{
 		"aws",
+		"gcp",
 	}
 
 	// SelectedProviders is the list of selected providers

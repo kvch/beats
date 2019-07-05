@@ -8,11 +8,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
-	"unicode"
 
-	humanize "github.com/dustin/go-humanize"
-
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/x-pack/functionbeat/function/config"
 )
 
 // Config expose the configuration option the AWS provider.
@@ -38,13 +35,13 @@ var (
 )
 
 type lambdaConfig struct {
-	Concurrency      int               `config:"concurrency" validate:"min=0,max=1000"`
-	DeadLetterConfig *deadLetterConfig `config:"dead_letter_config"`
-	Description      string            `config:"description"`
-	MemorySize       MemSizeFactor64   `config:"memory_size"`
-	Timeout          time.Duration     `config:"timeout" validate:"nonzero,positive"`
-	Role             string            `config:"role"`
-	VPCConfig        *vpcConfig        `config:"virtual_private_cloud"`
+	Concurrency      int                    `config:"concurrency" validate:"min=0,max=1000"`
+	DeadLetterConfig *deadLetterConfig      `config:"dead_letter_config"`
+	Description      string                 `config:"description"`
+	MemorySize       config.MemSizeFactor64 `config:"memory_size"`
+	Timeout          time.Duration          `config:"timeout" validate:"nonzero,positive"`
+	Role             string                 `config:"role"`
+	VPCConfig        *vpcConfig             `config:"virtual_private_cloud"`
 }
 
 func (c *lambdaConfig) Validate() error {
@@ -70,43 +67,6 @@ type deadLetterConfig struct {
 type vpcConfig struct {
 	SecurityGroupIDs []string `config:"security_group_ids" validate:"required"`
 	SubnetIDs        []string `config:"subnet_ids" validate:"required"`
-}
-
-// MemSizeFactor64 implements a human understandable format for bytes but also make sure that all
-// values used are a factory of 64.
-type MemSizeFactor64 int
-
-// Unpack converts a size defined from a human readable format into bytes and ensure that the value
-// is a factoru of 64.
-func (m *MemSizeFactor64) Unpack(v string) error {
-	sz, err := humanize.ParseBytes(v)
-	if isRawBytes(v) {
-		cfgwarn.Deprecate("7.0", "size now requires a unit (KiB, MiB, etc...), current value: %s.", v)
-	}
-	if err != nil {
-		return err
-	}
-
-	if sz%64 != 0 {
-		return fmt.Errorf("number is not a factor of 64, %d bytes (user value: %s)", sz, v)
-	}
-
-	*m = MemSizeFactor64(sz)
-	return nil
-}
-
-// Megabytes return the value in megatebytes.
-func (m *MemSizeFactor64) Megabytes() int {
-	return int(*m) / 1024 / 1024
-}
-
-func isRawBytes(v string) bool {
-	for _, c := range v {
-		if !unicode.IsDigit(c) {
-			return false
-		}
-	}
-	return true
 }
 
 type bucket string
