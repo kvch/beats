@@ -25,4 +25,9 @@ type functionConfig struct {
 	Labels              map[string]string      `config:"labels"`
 	VPCConnector        string                 `config:"vpc_connector"`
 	MaxInstances        int                    `config:"maximum_instances"`
+	Trigger             struct {
+		EventType string `config:"event_type" validate:"required"`
+		Resource  string `config:"resource" validate:"required"`
+		Service   string `config:"service" validate:"required"`
+	} `config:"trigger" validate:"required"`
 }

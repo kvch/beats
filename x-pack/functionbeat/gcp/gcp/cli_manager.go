@@ -6,6 +6,7 @@ package gcp
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
@@ -13,10 +14,7 @@ import (
 )
 
 const (
-	// AWS lambda currently support go 1.x as a runtime.
-	runtime          = "go111"        // Golang 1.11
-	entryPoint       = "functionbeat" // entrypoint
-	sourceArchiveURL = "gs://%s"      // location of functionbeat.zip
+	googleAPIsURL = "https://cloudfunctions.googleapis.com/v1/"
 )
 
 // CLIManager interacts with the AWS Lambda API to deploy, update or remove a function.
@@ -27,6 +25,8 @@ type CLIManager struct {
 	log             *logp.Logger
 	config          *Config
 	functionConfig  functionConfig
+
+	location string
 }
 
 // Deploy delegate deploy to the actual function implementation.
@@ -34,7 +34,11 @@ func (c *CLIManager) Deploy(name string) error {
 	c.log.Debugf("Deploying function: %s", name)
 	defer c.log.Debugf("Deploy finish for function '%s'", name)
 
-	// TODO deploy function
+	update := false
+	err := c.deploy(name, update)
+	if err != nil {
+		return err
+	}
 
 	c.log.Debugf("Successfully created function '%s'", name)
 	return nil
@@ -45,9 +49,26 @@ func (c *CLIManager) Update(name string) error {
 	c.log.Debugf("Starting updating function '%s'", name)
 	defer c.log.Debugf("Update complete for function '%s'", name)
 
-	// TODO update function using deploy
+	update := true
+	err := c.deploy(name, update)
+	if err != nil {
+		return err
+	}
 
 	c.log.Debugf("Successfully updated function: '%s'", name)
+	return nil
+}
+
+func (c *CLIManager) deploy(name string, update bool) error {
+	deployURL := googleAPIsURL + c.location + "/functions"
+	body := c.templateBuilder.requestBody()
+	resp, err := http.Post(deployURL, "application/json", body)
+
+	fmt.Println(resp)
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -56,8 +77,21 @@ func (c *CLIManager) Remove(name string) error {
 	c.log.Debugf("Removing function: %s", name)
 	defer c.log.Debugf("Removal of function '%s' complete", name)
 
-	// TODO remove function
+	functionURL := googleAPIsURL + name
+	req, err := http.Request("DELETE", functionURL, nil)
+	if err != nil {
+		return err
+	}
 
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(resp)
+
+	c.log.Debugf("Successfully deleted function: '%s'", name)
 	return nil
 }
 
@@ -82,9 +116,12 @@ func NewCLI(
 		return nil, fmt.Errorf("not restAPITemplateBuilder")
 	}
 
+	location := "projects/" + config.ProjectID + "/locations" + locationID
+
 	return &CLIManager{
 		config:          config,
 		log:             logp.NewLogger("gcp"),
 		templateBuilder: templateBuilder,
+		location:        location,
 	}, nil
 }
