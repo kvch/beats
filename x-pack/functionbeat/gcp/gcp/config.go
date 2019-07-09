@@ -12,6 +12,7 @@ import (
 
 // Config exposes the configuration options of the GCP provider.
 type Config struct {
+	Location        string `config:"location_id" validate:"required"`
 	ProjectID       string `config:"project_id", validate:"required"`
 	FunctionStorage string `config:"storage_url, validate:"required"`
 }

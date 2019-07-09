@@ -7,6 +7,8 @@ package gcp
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/x-pack/functionbeat/function/executor"
@@ -59,45 +61,29 @@ func (c *CLIManager) Update(name string) error {
 	return nil
 }
 
+// deploy uploads to bucket and creates a function on GCP.
 func (c *CLIManager) deploy(update bool, name string) error {
-	executer := executor.NewExecutor(c.log)
-	executer.Add(newOpEnsureBucket(c.log, c.Config))
-	executer.Add(newOpUploadToBucket(
-		c.log,
-		c.awsCfg,
-		c.bucket(),
-		templateData.codeKey,
-		templateData.zip.content,
-	))
-	executer.Add(newOpUploadToBucket(
-		c.log,
-		c.awsCfg,
-		c.bucket(),
-		templateData.key,
-		templateData.json,
-	))
-	if update {
-		executer.Add(newOpUpdateCloudFormation(
-			c.log,
-			svcCF,
-			templateData.url,
-			c.stackName(name),
-		))
-	} else {
-		executer.Add(newOpCreateCloudFormation(
-			c.log,
-			svcCF,
-			templateData.url,
-			c.stackName(name),
-		))
+	functionData, err := c.templateBuilder.execute(name)
+	if err != nil {
+		return err
 	}
-	executer.Add(newOpWaitCloudFormation(c.log, cf.New(c.awsCfg)))
-	executer.Add(newOpDeleteFileBucket(c.log, c.awsCfg, c.bucket(), templateData.codeKey))
 
-	ctx := newStackContext()
+	executer := executor.NewExecutor(c.log)
+	executer.Add(newOpEnsureBucket(c.log, c.config))
+	executer.Add(newOpUploadToBucket(c.log, c.config, functionData.raw))
+
+	if update {
+		// TODO
+	} else {
+		executer.Add(newOpCreateFunction(c.log, c.location, functionData.requestBody))
+	}
+
+	// TODO wait
+
+	ctx := newContext()
 	if err := executer.Execute(ctx); err != nil {
 		if rollbackErr := executer.Rollback(ctx); rollbackErr != nil {
-			return merrors.Wrapf(err, "could not rollback, error: %s", rollbackErr)
+			return errors.Wrapf(err, "could not rollback, error: %s", rollbackErr)
 		}
 		return err
 	}
@@ -109,7 +95,7 @@ func (c *CLIManager) Remove(name string) error {
 	c.log.Debugf("Removing function: %s", name)
 	defer c.log.Debugf("Removal of function '%s' complete", name)
 
-	fmt.Println(resp)
+	// TODO
 
 	c.log.Debugf("Successfully deleted function: '%s'", name)
 	return nil
@@ -136,7 +122,7 @@ func NewCLI(
 		return nil, fmt.Errorf("not restAPITemplateBuilder")
 	}
 
-	location := "projects/" + config.ProjectID + "/locations" + locationID
+	location := "projects/" + config.ProjectID + "/locations" + config.Location
 
 	return &CLIManager{
 		config:          config,

@@ -7,29 +7,39 @@ package gcp
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 
+	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/x-pack/functionbeat/function/executor"
 )
 
 type opCreateFunction struct {
-	log             *logp.Logger
-	templateBuilder *restAPITemplateBuilder
+	log         *logp.Logger
+	location    string
+	requestBody common.MapStr
 }
 
-func newOpCreateFunction(log *logp.Logger, templateBuilder *restAPITemplateBuilder) *opCreateFunction {
-	return &opCreateFunction{log: log, templateBuilder: templateBuilder}
+func newOpCreateFunction(log *logp.Logger, location string, requestBody common.MapStr) *opCreateFunction {
+	return &opCreateFunction{log: log, requestBody: requestBody}
 }
 
 func (o *opCreateFunction) Execute(_ executor.Context) error {
-	deployURL := googleAPIsURL + c.location + "/functions"
-	body := o.templateBuilder.requestBody()
-	resp, err := http.Post(deployURL, "application/json", body)
+	apiKey := os.Getenv("GOOGLE_CLOUD_PLATFORM_API_KEY")
+	if apiKey == "" {
+		return fmt.Errorf("GOOGLE_CLOUD_PLATFORM_API_KEY environment variable is not set")
+	}
+	params := url.Values{}
+	params.Set("key", apiKey)
+	deployURL := googleAPIsURL + o.location + "/functions?" + params.Encode()
+	resp, err := http.Post(deployURL, "application/json", strings.NewReader(o.requestBody.String()))
 
 	fmt.Println(resp)
 	return err
 }
 
 func (o *opCreateFunction) Rollback(_ executor.Context) error {
-
+	return nil
 }

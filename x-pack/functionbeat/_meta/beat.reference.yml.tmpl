@@ -181,6 +181,8 @@ functionbeat.provider.aws.functions:
 {{else if eq .Provider "gcp"}}# Configure functions to run on Google Cloud Platform, currently we assume that the credentials
 # are present in the environment to correctly create the function when using the CLI.
 #
+# Configure which region your project is located in.
+functionbeat.provider.gcp.location_id: "europe-west-1"
 # Configure which Google Cloud project to deploy your functions.
 functionbeat.provider.gcp.project_id: "my-project-123456"
 # Configure the Google Cloud Storage we should upload the function artifact.

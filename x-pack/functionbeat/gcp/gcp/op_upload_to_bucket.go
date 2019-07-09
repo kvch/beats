@@ -5,60 +5,54 @@
 package gcp
 
 import (
-	"bytes"
+	"context"
+	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"cloud.google.com/go/storage"
 
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/x-pack/functionbeat/function/executor"
 )
 
 type opUploadToBucket struct {
-	log  *logp.Logger
-	name string
-	path string
-	raw  []byte
+	log    *logp.Logger
+	config *Config
+	raw    []byte
 }
 
-func newOpUploadToBucket(
-	log *logp.Logger,
-	bucketName, path string,
-	raw []byte,
-) *opUploadToBucket {
+func newOpUploadToBucket(log *logp.Logger, config *Config, raw []byte) *opUploadToBucket {
 	return &opUploadToBucket{
 		log:    log,
-		name:   bucketName,
-		path:   path,
-		raw:    raw,
 		config: config,
+		raw:    raw,
 	}
 }
 
 func (o *opUploadToBucket) Execute(_ executor.Context) error {
-	o.log.Debugf("Uploading file '%s' to bucket '%s' with size %d bytes", o.path, o.bucketName, len(o.raw))
-	input := &s3.PutObjectInput{
-		Bucket: aws.String(o.bucketName),
-		Body:   bytes.NewReader(o.raw),
-		Key:    aws.String(o.path),
-	}
-	req := o.svc.PutObjectRequest(input)
-	resp, err := req.Send()
+	o.log.Debugf("Uploading file 'functionbeat-gcp' to bucket '%s' with size %d bytes", o.config.FunctionStorage, len(o.raw))
 
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
 	if err != nil {
-		o.log.Debugf("Could not upload object to S3, resp: %v", resp)
-		return err
+		return fmt.Errorf("could not create storage client: %+v", err)
 	}
-	o.log.Debug("Upload successful")
+	w := client.Bucket(o.config.FunctionStorage).Object("functionbeat-gcp").NewWriter(ctx)
+	w.ContentType = "text/plain"
+	w.ACL = []storage.ACLRule{{Entity: storage.AllUsers, Role: storage.RoleReader}} // TODO check permissions
+	_, err = w.Write(o.raw)
+	if err != nil {
+		return fmt.Errorf("error while writing function: %+v", err)
+	}
+	err = w.Close()
+	if err != nil {
+		return fmt.Errorf("error while closing writer: %+v", err)
+	}
+
+	o.log.Debug("Upload successful", w.Attrs())
 	return nil
 }
 
+// TODO
 func (o *opUploadToBucket) Rollback(ctx executor.Context) error {
-	// The error will be logged but we do not enforce a hard failure because the file could have
-	// been removed before.
-	err := newOpDeleteFileBucket(o.log, o.config, o.bucketName, o.path).Execute(ctx)
-	if err != nil {
-		o.log.Debugf("Fail to delete file on bucket, error: %+v", err)
-	}
 	return nil
 }

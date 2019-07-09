@@ -9,6 +9,7 @@ import (
 
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/x-pack/functionbeat/function/core"
 	"github.com/elastic/beats/x-pack/functionbeat/function/provider"
 )
 
@@ -28,24 +29,45 @@ func NewTemplateBuilder(log *logp.Logger, cfg *common.Config, p provider.Provide
 // restAPITemplateBuilder builds request object when deploying Functionbeat using
 // the command deploy.
 type restAPITemplateBuilder struct {
+	log            *logp.Logger
 	gcpConfig      Config
 	functionConfig functionConfig
 }
 
-// newRestAPITemplateBuilder
-func newRestAPITemplateBuilder(log *logp.Logger, cfg *common.Config, p provider.Provider) (provider.TemplateBuilder, error) {
-	return &restAPITemplateBuilder{}, nil
+type functionData struct {
+	raw         []byte
+	requestBody map[string]interface{}
 }
 
-func (r *restAPITemplateBuilder) requestBody() map[string]interface{} {
-	body := map[string]interface{}{
-		"name":                 "functionbeat", // TODO check
+// newRestAPITemplateBuilder
+func newRestAPITemplateBuilder(log *logp.Logger, cfg *common.Config, p provider.Provider) (provider.TemplateBuilder, error) {
+	return &restAPITemplateBuilder{log: log}, nil
+}
+
+func (r *restAPITemplateBuilder) execute(name string) (*functionData, error) {
+	r.log.Debug("Compressing all assets into an artifact")
+	raw, err := core.MakeZip("gcp")
+	if err != nil {
+		return nil, err
+	}
+
+	r.log.Debugf("Compression is successful (zip size: %d bytes)", len(raw))
+
+	return &functionData{
+		raw:         raw,
+		requestBody: r.requestBody(name),
+	}, nil
+}
+
+func (r *restAPITemplateBuilder) requestBody(name string) common.MapStr {
+	body := common.MapStr{
+		"name":                 name,
 		"description":          r.functionConfig.Description,
-		"entryPoint":           entryPoint, // TODO check
+		"entryPoint":           entryPoint,
 		"runtime":              runtime,
-		"sourceUploadUrl":      url,
-		"eventTrigger":         r.functionConfig.eventTrigger,
-		"environmentVariables": map[string]string{}, // TODO pass beats variables
+		"sourceUploadUrl":      r.gcpConfig.FunctionStorage,
+		"eventTrigger":         r.functionConfig.Trigger,
+		"environmentVariables": common.MapStr{}, // TODO pass beats variables
 	}
 	if r.functionConfig.Timeout > 0*time.Second {
 		body["timeout"] = r.functionConfig.Timeout.String()
@@ -70,9 +92,7 @@ func (r *restAPITemplateBuilder) requestBody() map[string]interface{} {
 
 // RawTemplate returns the JSON to POST to the endpoint.
 func (r *restAPITemplateBuilder) RawTemplate(name string) (string, error) {
-	b := r.requestBody()
-	printableBody := common.MapStr{b}
-	return b.StringToPrint(), err
+	return r.requestBody(name).StringToPrint(), nil
 }
 
 // deploymentManaegerTemplateBuilder builds a YAML configuration for users
