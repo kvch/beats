@@ -6,10 +6,10 @@ package gcp
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/x-pack/functionbeat/function/executor"
 	"github.com/elastic/beats/x-pack/functionbeat/function/provider"
 )
 
@@ -34,8 +34,8 @@ func (c *CLIManager) Deploy(name string) error {
 	c.log.Debugf("Deploying function: %s", name)
 	defer c.log.Debugf("Deploy finish for function '%s'", name)
 
-	update := false
-	err := c.deploy(name, update)
+	create := false
+	err := c.deploy(create, name)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (c *CLIManager) Update(name string) error {
 	defer c.log.Debugf("Update complete for function '%s'", name)
 
 	update := true
-	err := c.deploy(name, update)
+	err := c.deploy(update, name)
 	if err != nil {
 		return err
 	}
@@ -59,14 +59,46 @@ func (c *CLIManager) Update(name string) error {
 	return nil
 }
 
-func (c *CLIManager) deploy(name string, update bool) error {
-	deployURL := googleAPIsURL + c.location + "/functions"
-	body := c.templateBuilder.requestBody()
-	resp, err := http.Post(deployURL, "application/json", body)
+func (c *CLIManager) deploy(update bool, name string) error {
+	executer := executor.NewExecutor(c.log)
+	executer.Add(newOpEnsureBucket(c.log, c.Config))
+	executer.Add(newOpUploadToBucket(
+		c.log,
+		c.awsCfg,
+		c.bucket(),
+		templateData.codeKey,
+		templateData.zip.content,
+	))
+	executer.Add(newOpUploadToBucket(
+		c.log,
+		c.awsCfg,
+		c.bucket(),
+		templateData.key,
+		templateData.json,
+	))
+	if update {
+		executer.Add(newOpUpdateCloudFormation(
+			c.log,
+			svcCF,
+			templateData.url,
+			c.stackName(name),
+		))
+	} else {
+		executer.Add(newOpCreateCloudFormation(
+			c.log,
+			svcCF,
+			templateData.url,
+			c.stackName(name),
+		))
+	}
+	executer.Add(newOpWaitCloudFormation(c.log, cf.New(c.awsCfg)))
+	executer.Add(newOpDeleteFileBucket(c.log, c.awsCfg, c.bucket(), templateData.codeKey))
 
-	fmt.Println(resp)
-
-	if err != nil {
+	ctx := newStackContext()
+	if err := executer.Execute(ctx); err != nil {
+		if rollbackErr := executer.Rollback(ctx); rollbackErr != nil {
+			return merrors.Wrapf(err, "could not rollback, error: %s", rollbackErr)
+		}
 		return err
 	}
 	return nil
@@ -76,18 +108,6 @@ func (c *CLIManager) deploy(name string, update bool) error {
 func (c *CLIManager) Remove(name string) error {
 	c.log.Debugf("Removing function: %s", name)
 	defer c.log.Debugf("Removal of function '%s' complete", name)
-
-	functionURL := googleAPIsURL + name
-	req, err := http.Request("DELETE", functionURL, nil)
-	if err != nil {
-		return err
-	}
-
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
 
 	fmt.Println(resp)
 
