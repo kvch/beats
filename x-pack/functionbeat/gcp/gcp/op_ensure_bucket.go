@@ -15,12 +15,13 @@ import (
 )
 
 type opEnsureBucket struct {
-	log    *logp.Logger
-	config *Config
+	log     *logp.Logger
+	config  *Config
+	created bool
 }
 
 func newOpEnsureBucket(log *logp.Logger, cfg *Config) *opEnsureBucket {
-	return &opEnsureBucket{log: log, config: cfg}
+	return &opEnsureBucket{log: log, config: cfg, created: false}
 }
 
 func (o *opEnsureBucket) Execute(_ executor.Context) error {
@@ -39,8 +40,30 @@ func (o *opEnsureBucket) Execute(_ executor.Context) error {
 		if berr != nil {
 			return fmt.Errorf("cannot create bucket for function: %+v", berr)
 		}
+		o.created = false
 		o.log.Debugf("Cloud Storage bucket created with name '%s', attributes: %+v", o.config.FunctionStorage, attrs)
+		return nil
 	}
 
-	return fmt.Errorf("cannot get info on bucket and does exist +%v", err)
+	if err != nil {
+		return fmt.Errorf("cannot get info on bucket: %+v", err)
+	}
+
+	o.log.Debugf("Cloud Storage bucket exists with name '%s', attributes: %+v", o.config.FunctionStorage, attrs)
+	return nil
+}
+
+func (o *opEnsureBucket) Rollback(_ executor.Context) error {
+	if o.created {
+		ctx := context.Background()
+		client, err := storage.NewClient(ctx)
+		if err != nil {
+			return err
+		}
+		err = client.Bucket(o.config.FunctionStorage).Delete(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

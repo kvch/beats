@@ -26,7 +26,7 @@ type CLIManager struct {
 	templateBuilder *restAPITemplateBuilder
 	log             *logp.Logger
 	config          *Config
-	functionConfig  functionConfig
+	functionConfig  *functionConfig
 
 	location string
 }
@@ -70,7 +70,7 @@ func (c *CLIManager) deploy(update bool, name string) error {
 
 	executer := executor.NewExecutor(c.log)
 	executer.Add(newOpEnsureBucket(c.log, c.config))
-	executer.Add(newOpUploadToBucket(c.log, c.config, functionData.raw))
+	executer.Add(newOpUploadToBucket(c.log, c.config, name, functionData.raw))
 
 	if update {
 		// TODO
@@ -126,6 +126,7 @@ func NewCLI(
 
 	return &CLIManager{
 		config:          config,
+		functionConfig:  functionConfig,
 		log:             logp.NewLogger("gcp"),
 		templateBuilder: templateBuilder,
 		location:        location,

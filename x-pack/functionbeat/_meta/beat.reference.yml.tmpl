@@ -220,6 +220,11 @@ functionbeat.provider.gcp.functions:
     # Number of maximum instances running at the same time. Default is unlimited.
     #maximum_instances: 0
 
+    trigger:
+      event_type: "providers/cloud.pubsub/eventTypes/topic.publish"
+      resource: "projects/_/pubsub/myPubSub"
+      #service: "pubsub.googleapis.com"
+
     # Optional fields that you can specify to add additional information to the
     # output. Fields can be scalar values, arrays, dictionaries, or any nested
     # combination of these.

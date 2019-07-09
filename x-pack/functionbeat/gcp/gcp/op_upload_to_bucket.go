@@ -17,26 +17,28 @@ import (
 type opUploadToBucket struct {
 	log    *logp.Logger
 	config *Config
+	name   string
 	raw    []byte
 }
 
-func newOpUploadToBucket(log *logp.Logger, config *Config, raw []byte) *opUploadToBucket {
+func newOpUploadToBucket(log *logp.Logger, config *Config, name string, raw []byte) *opUploadToBucket {
 	return &opUploadToBucket{
 		log:    log,
 		config: config,
+		name:   name,
 		raw:    raw,
 	}
 }
 
 func (o *opUploadToBucket) Execute(_ executor.Context) error {
-	o.log.Debugf("Uploading file 'functionbeat-gcp' to bucket '%s' with size %d bytes", o.config.FunctionStorage, len(o.raw))
+	o.log.Debugf("Uploading file '%s' to bucket '%s' with size %d bytes", o.name, o.config.FunctionStorage, len(o.raw))
 
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return fmt.Errorf("could not create storage client: %+v", err)
 	}
-	w := client.Bucket(o.config.FunctionStorage).Object("functionbeat-gcp").NewWriter(ctx)
+	w := client.Bucket(o.config.FunctionStorage).Object(o.name).NewWriter(ctx)
 	w.ContentType = "text/plain"
 	w.ACL = []storage.ACLRule{{Entity: storage.AllUsers, Role: storage.RoleReader}} // TODO check permissions
 	_, err = w.Write(o.raw)

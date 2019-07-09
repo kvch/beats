@@ -34,9 +34,13 @@ func (o *opCreateFunction) Execute(_ executor.Context) error {
 	params := url.Values{}
 	params.Set("key", apiKey)
 	deployURL := googleAPIsURL + o.location + "/functions?" + params.Encode()
+
+	o.log.Debugf("POSTing request at %s:\n%s", deployURL, o.requestBody.StringToPrint())
+
 	resp, err := http.Post(deployURL, "application/json", strings.NewReader(o.requestBody.String()))
 
-	fmt.Println(resp)
+	o.log.Debugf("%+v", resp)
+
 	return err
 }
 
