@@ -16,6 +16,7 @@ var (
 
 	availableProviders = []string{
 		"aws",
+		"gcp",
 	}
 )
 
