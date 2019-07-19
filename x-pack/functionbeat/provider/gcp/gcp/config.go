@@ -7,7 +7,7 @@ package gcp
 import (
 	"time"
 
-	"github.com/elastic/beats/x-pack/functionbeat/function/config"
+	"github.com/elastic/beats/x-pack/functionbeat/config"
 )
 
 // Config exposes the configuration options of the GCP provider.

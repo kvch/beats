@@ -2,17 +2,15 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package main
+package gcp
 
 import (
-	"os"
+	"context"
 
-	"github.com/elastic/beats/x-pack/functionbeat/provider/gcp/cmd"
+	"cloud.google.com/go/pubsub"
+
 	_ "github.com/elastic/beats/x-pack/functionbeat/provider/gcp/include"
 )
 
-func main() {
-	if err := cmd.RootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+func RunPubSub(ctx context.Context, m pubsub.Message) {
 }

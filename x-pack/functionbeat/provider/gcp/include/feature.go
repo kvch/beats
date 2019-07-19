@@ -7,22 +7,23 @@ package include
 import (
 	"github.com/elastic/beats/libbeat/feature"
 	"github.com/elastic/beats/x-pack/functionbeat/function/provider"
+	"github.com/elastic/beats/x-pack/functionbeat/provider/gcp/gcp"
 )
 
 // Bundle exposes the trigger supported by the GCP provider.
 var bundle = provider.MustCreate(
 	"gcp",
-	provider.NewDefaultProvider("gcp", NewCLI, NewTemplateBuilder),
+	provider.NewDefaultProvider("gcp", provider.NewNullCli, provider.NewNullTemplateBuilder),
 	feature.NewDetails("Google Cloud Platform", "listen to events from Google Cloud Platform", feature.Stable),
 ).MustAddFunction("pubsub",
-	NewPubSub,
+	gcp.NewPubSub,
 	feature.NewDetails(
 		"Google Pub/Sub trigger",
 		"receive events from Google Pub/Sub.",
 		feature.Stable,
 	),
 ).MustAddFunction("cloudstorage",
-	NewCloudStorage,
+	gcp.NewCloudStorage,
 	feature.NewDetails(
 		"Google Cloud Storage trigger",
 		"receive events from Google Cloud Storage.",
