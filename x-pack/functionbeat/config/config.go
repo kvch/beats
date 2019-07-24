@@ -27,6 +27,7 @@ var (
 		"path.logs":              "/tmp/logs",
 		"logging.to_stderr":      true,
 		"logging.to_files":       false,
+		"logging.level":          "debug",
 		"setup.template.enabled": true,
 		"queue.mem": map[string]interface{}{
 			"events":           "${output.elasticsearch.bulk_max_size}",
