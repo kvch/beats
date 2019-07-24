@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubernetes/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/common/kubernetes"

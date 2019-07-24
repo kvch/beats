@@ -37,13 +37,11 @@ var defaultIntrinsicHandlers = map[string]IntrinsicHandler{
 }
 
 // ProcessorOptions allows customisation of the intrinsic function processor behaviour.
-// This allows disabling the processing of intrinsics,
-// overriding of the handlers for each intrinsic function type,
-// and overriding template parameters.
+// Initially, this only allows overriding of the handlers for each intrinsic function type
+// and overriding template paramters.
 type ProcessorOptions struct {
 	IntrinsicHandlerOverrides map[string]IntrinsicHandler
 	ParameterOverrides        map[string]interface{}
-	NoProcess                 bool
 }
 
 // nonResolvingHandler is a simple example of an intrinsic function handler function
@@ -80,20 +78,14 @@ func ProcessJSON(input []byte, options *ProcessorOptions) ([]byte, error) {
 		return nil, fmt.Errorf("invalid JSON: %s", err)
 	}
 
-	var processed interface{}
+	applyGlobals(unmarshalled, options)
 
-	if options != nil && options.NoProcess {
-		processed = unmarshalled
-	} else {
-		applyGlobals(unmarshalled, options)
+	overrideParameters(unmarshalled, options)
 
-		overrideParameters(unmarshalled, options)
+	evaluateConditions(unmarshalled, options)
 
-		evaluateConditions(unmarshalled, options)
-
-		// Process all of the intrinsic functions
-		processed = search(unmarshalled, unmarshalled, options)
-	}
+	// Process all of the intrinsic functions
+	processed := search(unmarshalled, unmarshalled, options)
 
 	// And return the result back as a []byte of JSON
 	result, err := json.MarshalIndent(processed, "", "  ")

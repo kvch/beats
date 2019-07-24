@@ -35,7 +35,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -249,12 +248,8 @@ func NewInClusterClient() (*Client, error) {
 		return nil, err
 	}
 
-	server := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, port),
-	}
 	cluster := Cluster{
-		Server:               server.String(),
+		Server:               "https://" + host + ":" + port,
 		CertificateAuthority: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
 	}
 	user := AuthInfo{TokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"}
