@@ -60,10 +60,9 @@ func (c Client) ContainerStart(image string, cmd []string, labels map[string]str
 }
 
 // ContainerWait waits for a container to finish
-func (c Client) ContainerWait(ID string) error {
+func (c Client) ContainerWait(ID string) (<-chan container.ContainerWaitOKBody, <-chan error) {
 	ctx := context.Background()
-	_, err := c.cli.ContainerWait(ctx, ID)
-	return err
+	return c.cli.ContainerWait(ctx, ID, container.WaitConditionNotRunning)
 }
 
 // ContainerKill kills the given container

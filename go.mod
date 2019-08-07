@@ -12,7 +12,6 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6
 	github.com/aerospike/aerospike-client-go v0.0.0-20170612174108-0f3b54da6bdc
 	github.com/andrewkroh/sys v0.0.0-20151128191922-287798fe3e43
-	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/aws/aws-lambda-go v1.6.0
 	github.com/aws/aws-sdk-go-v2 v0.5.0
 	github.com/awslabs/goformation v0.0.0-20180916202949-d42502ef32a8
@@ -24,7 +23,6 @@ require (
 	github.com/coreos/bbolt v1.3.2
 	github.com/coreos/go-systemd v0.0.0-20190618135430-ff7011eec365
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/davecgh/go-spew v1.1.1
 	github.com/denisenkom/go-mssqldb v0.0.0-20181014144952-4e0d7dc8888f
 	github.com/digitalocean/go-libvirt v0.0.0-20190715144809-7b622097a793
 	github.com/dlclark/regexp2 v0.0.0-20171009020623-7632a260cbaf // indirect
@@ -42,19 +40,13 @@ require (
 	github.com/elastic/ecs v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/elastic/go-lookslike v0.2.0
-	github.com/elastic/go-lumber v0.1.0
-	github.com/elastic/go-seccomp-bpf v1.1.0
-	github.com/elastic/go-structform v0.0.5
 	github.com/elastic/go-sysinfo v0.0.0-20190508093345-9a4be54a53be
-	github.com/elastic/go-txfile v0.0.6
 	github.com/elastic/go-ucfg v0.7.0
 	github.com/elastic/gosigar v0.10.3
 	github.com/ericchiang/k8s v1.0.0
-	github.com/fatih/color v1.7.0
 	github.com/fsnotify/fsevents v0.0.0-00010101000000-000000000000
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/garyburd/redigo v0.0.0-20160525165706-b8dc90050f24
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.2+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.4.1
@@ -69,13 +61,9 @@ require (
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901
 	github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024
-	github.com/klauspost/compress v1.4.1 // indirect
-	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/lib/pq v1.1.1
 	github.com/magefile/mage v1.8.0
-	github.com/mattn/go-colorable v0.0.9
-	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/miekg/dns v1.0.8
 	github.com/mitchellh/hashstructure v0.0.0-20170116052023-ab25296c0f51
 	github.com/mitchellh/mapstructure v1.1.2
@@ -87,7 +75,8 @@ require (
 	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.2
-	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
+	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
+	github.com/rogpeppe/gohack v1.0.2 // indirect
 	github.com/samuel/go-parser v0.0.0-20130731160455-ca8abbf65d0e // indirect
 	github.com/samuel/go-thrift v0.0.0-20140522043831-2187045faa54
 	github.com/shirou/gopsutil v2.18.11+incompatible
