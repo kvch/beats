@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/elastic/beats/x-pack/functionbeat/config"
 )
 
 // Config expose the configuration option the AWS provider.
@@ -37,13 +39,13 @@ var (
 
 // LambdaConfig stores the common configuration of Lambda functions.
 type LambdaConfig struct {
-	Concurrency      int               `config:"concurrency" validate:"min=0,max=1000"`
-	DeadLetterConfig *deadLetterConfig `config:"dead_letter_config"`
-	Description      string            `config:"description"`
-	MemorySize       MemSizeFactor64   `config:"memory_size"`
-	Timeout          time.Duration     `config:"timeout" validate:"nonzero,positive"`
-	Role             string            `config:"role"`
-	VPCConfig        *vpcConfig        `config:"virtual_private_cloud"`
+	Concurrency      int                    `config:"concurrency" validate:"min=0,max=1000"`
+	DeadLetterConfig *deadLetterConfig      `config:"dead_letter_config"`
+	Description      string                 `config:"description"`
+	MemorySize       config.MemSizeFactor64 `config:"memory_size"`
+	Timeout          time.Duration          `config:"timeout" validate:"nonzero,positive"`
+	Role             string                 `config:"role"`
+	VPCConfig        *vpcConfig             `config:"virtual_private_cloud"`
 }
 
 // Validate checks a LambdaConfig
