@@ -2,13 +2,13 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
-package gcp
+package pubsub
 
 import (
 	"context"
 	"fmt"
 
-	"cloud.google.com/go/pubsub"
+	gpubsub "cloud.google.com/go/pubsub"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/cfgfile"
@@ -20,7 +20,7 @@ import (
 	_ "github.com/elastic/beats/x-pack/functionbeat/provider/gcp/include"
 )
 
-func RunPubSub(ctx context.Context, m pubsub.Message) {
+func RunPubSub(ctx context.Context, m gpubsub.Message) {
 	settings := instance.Settings{
 		Name:            "functionbeat",
 		IndexPrefix:     "functionbeat",
@@ -32,7 +32,7 @@ func RunPubSub(ctx context.Context, m pubsub.Message) {
 	instance.Run(settings, initFunctionbeat(ctx, m))
 }
 
-func initFunctionbeat(ctx context.Context, m pubsub.Message) func(*beat.Beat, *common.Config) (beat.Beater, error) {
+func initFunctionbeat(ctx context.Context, m gpubsub.Message) func(*beat.Beat, *common.Config) (beat.Beater, error) {
 	return func(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		bt, err := beater.New(b, cfg)
 		if err != nil {
