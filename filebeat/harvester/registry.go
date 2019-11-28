@@ -19,17 +19,20 @@ package harvester
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gofrs/uuid"
 
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/libbeat/monitoring"
 )
 
 // Registry struct manages (start / stop) a list of harvesters
 type Registry struct {
 	sync.RWMutex
 	harvesters map[uuid.UUID]Harvester
+	lastStates *monitoring.Registry
 	wg         sync.WaitGroup
 	done       chan struct{}
 }
@@ -38,6 +41,16 @@ type Registry struct {
 func NewRegistry() *Registry {
 	return &Registry{
 		harvesters: map[uuid.UUID]Harvester{},
+		done:       make(chan struct{}),
+	}
+}
+
+// NewRegistry creates a new registry object
+func NewMonitoredRegistry(input string) *Registry {
+	lastStatesName := fmt.Sprintf("filebeat.%s.harvesters", input)
+	return &Registry{
+		harvesters: map[uuid.UUID]Harvester{},
+		lastStates: monitoring.Default.NewRegistry(lastStatesName),
 		done:       make(chan struct{}),
 	}
 }
@@ -82,12 +95,23 @@ func (r *Registry) Start(h Harvester) error {
 	}
 
 	r.wg.Add(1)
+	name := ""
+	if r.lastStates != nil {
+		namedHarvester, ok := h.(NamedHarvester)
+		if !ok {
+			return fmt.Errorf("only named harvesters can be monitored")
+		}
+		name = namedHarvester.Name()
+		if entry := r.lastStates.Get(name); entry != nil {
+			r.lastStates.Remove(name)
+		}
+	}
 
 	// Add the harvester to the registry and share the lock with stop making sure Start() and Stop()
 	// have a consistent view of the harvesters.
 	r.harvesters[h.ID()] = h
 
-	go func() {
+	go func(harvesterName string) {
 		defer func() {
 			r.remove(h)
 			r.wg.Done()
@@ -95,9 +119,12 @@ func (r *Registry) Start(h Harvester) error {
 		// Starts harvester and picks the right type. In case type is not set, set it to default (log)
 		err := h.Run()
 		if err != nil {
-			logp.Err("Error running input: %v", err)
+			logp.Err("Error running harvester: %v", err)
+			if r.lastStates != nil {
+				monitoring.NewString(r.lastStates, harvesterName).Fail(err)
+			}
 		}
-	}()
+	}(name)
 	return nil
 }
 

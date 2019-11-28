@@ -28,3 +28,9 @@ type Harvester interface {
 	Run() error
 	Stop()
 }
+
+// NamedHarvester is a Harvester capable of returning a name.
+type NamedHarvester interface {
+	Harvester
+	Name() string
+}

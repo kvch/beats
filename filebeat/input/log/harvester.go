@@ -180,6 +180,10 @@ func (h *Harvester) ID() uuid.UUID {
 	return h.id
 }
 
+func (h *Harvester) Name() string {
+	return h.source.Name()
+}
+
 // Setup opens the file handler and creates the reader for the harvester
 func (h *Harvester) Setup() error {
 	err := h.open()
@@ -331,7 +335,7 @@ func (h *Harvester) Run() error {
 			default:
 				logp.Err("Read line error: %v; File: %v", err, h.state.Source)
 			}
-			return nil
+			return err
 		}
 
 		// Get copy of state to work on

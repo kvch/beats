@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/elastic/beats/filebeat/channel"
 	"github.com/elastic/beats/filebeat/harvester"
 	"github.com/elastic/beats/filebeat/input"
@@ -60,6 +62,7 @@ func init() {
 
 // Input contains the input and its config
 type Input struct {
+	id            uuid.UUID
 	cfg           *common.Config
 	config        config
 	states        *file.States
@@ -112,10 +115,16 @@ func NewInput(
 		meta = nil
 	}
 
+	id, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Input{
+		id:          id,
 		config:      defaultConfig,
 		cfg:         cfg,
-		harvesters:  harvester.NewRegistry(),
+		harvesters:  harvester.NewMonitoredRegistry("log." + id.String()),
 		outlet:      out,
 		stateOutlet: stateOut,
 		states:      file.NewStates(),
