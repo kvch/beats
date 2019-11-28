@@ -35,8 +35,9 @@ type Registry struct {
 	wg         sync.WaitGroup
 	done       chan struct{}
 
-	lastStates    *monitoring.Registry
-	statesRegName string
+	lastStates     *monitoring.Registry
+	lastHarvesters map[string]uuid.UUID
+	statesRegName  string
 }
 
 // NewRegistry creates a new registry object
@@ -47,13 +48,28 @@ func NewRegistry() *Registry {
 	}
 }
 
-// NewRegistry creates a new registry object
+// NewMonitoredRegistry creates a new registry object
+// which is capable of monitoring the errors of the harvesters.
 func NewMonitoredRegistry(input string) *Registry {
 	r := NewRegistry()
 	lastStatesName := fmt.Sprintf("filebeat.%s.harvesters", input)
 	r.lastStates = monitoring.Default.NewRegistry(lastStatesName)
 	r.statesRegName = lastStatesName
+	r.lastHarvesters = make(map[string]uuid.UUID)
 	return r
+}
+
+type harvestedFilesState struct {
+	name  *monitoring.String
+	state *monitoring.String
+}
+
+func newHarvestedFileState(r *monitoring.Registry, harvester uuid.UUID) *harvestedFilesState {
+	reg := r.NewRegistry(harvester.String())
+	return &harvestedFilesState{
+		name:  monitoring.NewString(reg, "name"),
+		state: monitoring.NewString(reg, "state"),
+	}
 }
 
 func (r *Registry) remove(h Harvester) {
@@ -100,6 +116,7 @@ func (r *Registry) Start(h Harvester) error {
 	}
 
 	r.wg.Add(1)
+
 	name := ""
 	if r.lastStates != nil {
 		namedHarvester, ok := h.(NamedHarvester)
@@ -107,8 +124,12 @@ func (r *Registry) Start(h Harvester) error {
 			return fmt.Errorf("only named harvesters can be monitored")
 		}
 		name = namedHarvester.Name()
-		if entry := r.lastStates.Get(name); entry != nil {
-			r.lastStates.Remove(name)
+		previousHarvesterID := r.lastHarvesters[name].String()
+		if previousHarvesterID != "" {
+			if entry := r.lastStates.Get(previousHarvesterID); entry != nil {
+				r.lastStates.Remove(previousHarvesterID)
+			}
+			delete(r.lastHarvesters, name)
 		}
 	}
 
@@ -125,8 +146,13 @@ func (r *Registry) Start(h Harvester) error {
 		err := h.Run()
 		if err != nil {
 			logp.Err("Error running harvester: %v", err)
-			if r.lastStates != nil {
-				monitoring.NewString(r.lastStates, harvesterName).Fail(err)
+
+			// update last states if error is returned
+			if r.lastStates != nil && harvesterName != "" {
+				s := newHarvestedFileState(r.lastStates, h.ID())
+				s.name.Set(harvesterName)
+				s.state.Fail(err)
+				r.lastHarvesters[harvesterName] = h.ID()
 			}
 		}
 	}(name)
