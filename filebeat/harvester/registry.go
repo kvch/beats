@@ -32,9 +32,11 @@ import (
 type Registry struct {
 	sync.RWMutex
 	harvesters map[uuid.UUID]Harvester
-	lastStates *monitoring.Registry
 	wg         sync.WaitGroup
 	done       chan struct{}
+
+	lastStates    *monitoring.Registry
+	statesRegName string
 }
 
 // NewRegistry creates a new registry object
@@ -47,12 +49,11 @@ func NewRegistry() *Registry {
 
 // NewRegistry creates a new registry object
 func NewMonitoredRegistry(input string) *Registry {
+	r := NewRegistry()
 	lastStatesName := fmt.Sprintf("filebeat.%s.harvesters", input)
-	return &Registry{
-		harvesters: map[uuid.UUID]Harvester{},
-		lastStates: monitoring.Default.NewRegistry(lastStatesName),
-		done:       make(chan struct{}),
-	}
+	r.lastStates = monitoring.Default.NewRegistry(lastStatesName)
+	r.statesRegName = lastStatesName
+	return r
 }
 
 func (r *Registry) remove(h Harvester) {
@@ -75,6 +76,10 @@ func (r *Registry) Stop() {
 		go func(h Harvester) {
 			h.Stop()
 		}(hv)
+	}
+
+	if r.lastStates != nil {
+		monitoring.Default.Remove(r.statesRegName)
 	}
 }
 
