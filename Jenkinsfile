@@ -13,7 +13,7 @@ pipeline {
     BASE_DIR = 'src/github.com/elastic/beats'
     GOX_FLAGS = "-arch amd64"
     DOCKER_COMPOSE_VERSION = "1.21.0"
-    GO111MODULES = "off"
+    GO111MODULE = "off"
   }
   options {
     timeout(time: 2, unit: 'HOURS')
