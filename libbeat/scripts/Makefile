@@ -22,7 +22,7 @@ SECCOMP_BINARY?=${BEAT_NAME}
 SECCOMP_BLACKLIST?=${ES_BEATS}/libbeat/common/seccomp/seccomp-profiler-blacklist.txt
 SECCOMP_ALLOWLIST?=${ES_BEATS}/libbeat/common/seccomp/seccomp-profiler-allow.txt
 MAGE_PRESENT := $(shell command -v mage 2> /dev/null)
-MAGE_IMPORT_PATH?=github.com/elastic/beats/vendor/github.com/magefile/mage
+MAGE_IMPORT_PATH?=github.com/magefile/mage
 export MAGE_IMPORT_PATH
 
 space:=$() #
@@ -57,8 +57,8 @@ PKG_BUILD_DIR?=$(BUILD_DIR)/package${PKG_SUFFIX}
 PKG_UPLOAD_DIR?=$(BUILD_DIR)/upload
 COVERAGE_DIR?=${BUILD_DIR}/coverage
 COVERAGE_TOOL?=${BEAT_GOPATH}/bin/gotestcover
-COVERAGE_TOOL_REPO?=github.com/elastic/beats/vendor/github.com/pierrre/gotestcover
-TESTIFY_TOOL_REPO?=github.com/elastic/beats/vendor/github.com/stretchr/testify/assert
+COVERAGE_TOOL_REPO?=github.com/pierrre/gotestcover
+TESTIFY_TOOL_REPO?=github.com/stretchr/testify/assert
 NOW=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 GOBUILD_FLAGS?=-ldflags "-X github.com/elastic/beats/libbeat/version.buildTime=$(NOW) -X github.com/elastic/beats/libbeat/version.commit=$(COMMIT_ID)"
 GOIMPORTS=goimports
@@ -129,7 +129,7 @@ ${BEAT_NAME}.test: $(GOFILES_ALL)
 crosscompile: ## @build Cross-compile beat for the OS'es specified in GOX_OS variable. The binaries are placed in the build/bin directory.
 crosscompile: $(GOFILES)
 ifneq ($(shell [[ $(BEAT_NAME) == journalbeat ]] && echo true ),true)
-	go get github.com/mitchellh/gox
+	@go get github.com/mitchellh/gox
 	mkdir -p ${BUILD_DIR}/bin
 	gox -output="${BUILD_DIR}/bin/{{.Dir}}-{{.OS}}-{{.Arch}}" -os="$(strip $(GOX_OS))" -osarch="$(strip $(GOX_OSARCH))" ${GOX_FLAGS}
 endif
@@ -180,9 +180,9 @@ ci:  ## @build Shortcut for continuous integration. This should always run befor
 prepare-tests:
 	mkdir -p ${COVERAGE_DIR}
 	# gotestcover is needed to fetch coverage for multiple packages
-	go get ${COVERAGE_TOOL_REPO}
+	@go install -mod=vendor ${COVERAGE_TOOL_REPO}
 	# testify is needed for unit and integration tests
-	go get ${TESTIFY_TOOL_REPO}
+	@go install -mod=vendor ${TESTIFY_TOOL_REPO}
 
 .PHONY: unit-tests
 unit-tests: ## @testing Runs the unit tests with coverage.  Race is not enabled for unit tests because tests run much slower.
@@ -191,7 +191,7 @@ unit-tests: prepare-tests
 
 .PHONY: unit
 unit: ## @testing Runs the unit tests without coverage reports.
-	go test $(RACE) ${GOPACKAGES}
+	go test -mod=vendor $(RACE) ${GOPACKAGES}
 
 .PHONY: integration-tests
 integration-tests: ## @testing Run integration tests. Unit tests are run as part of the integration tests.

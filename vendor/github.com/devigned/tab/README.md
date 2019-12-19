@@ -1,9 +1,4 @@
 # Trace Abstraction (tab)
-[![Go Report Card](https://goreportcard.com/badge/github.com/devigned/tab)](https://goreportcard.com/report/github.com/devigned/tab)
-[![godoc](https://godoc.org/github.com/devigned/tab?status.svg)](https://godoc.org/github.com/devigned/tab)
-[![Build Status](https://travis-ci.org/devigned/tab.svg?branch=master)](https://travis-ci.org/devigned/tab)
-[![Coverage Status](https://coveralls.io/repos/github/devigned/tab/badge.svg?branch=master)](https://coveralls.io/github/devigned/tab?branch=master)
-
 OpenTracing and OpenCensus abstraction for tracing and logging. 
 
 Why? Well, sometimes you want to let the consumer choose the tracing / logging implementation.
@@ -12,7 +7,7 @@ Why? Well, sometimes you want to let the consumer choose the tracing / logging i
 ### Installing the library
 
 ```
-go get -u github.com/devigned/tab
+go get -u github.com/devigned/tab/...
 ```
 
 If you need to install Go, follow [the official instructions](https://golang.org/dl/)

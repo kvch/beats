@@ -1,4 +1,4 @@
-// Copyright 2016 The go-libvirt Authors.
+// Copyright 2018 The go-libvirt Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/davecgh/go-xdr/xdr2"
 	"github.com/digitalocean/go-libvirt/internal/constants"
+	xdr "github.com/digitalocean/go-libvirt/internal/go-xdr/xdr2"
 )
 
 // ErrUnsupported is returned if a procedure is not supported by libvirt
@@ -104,6 +104,23 @@ type response struct {
 	Status  uint32
 }
 
+// event stream associated with a program and a procedure
+type eventStream struct {
+	// Channel of events sent by libvirt
+	Events chan event
+
+	// Remote procedure identifier used to unregister callback
+	DeregisterProc uint32
+
+	// Program identifier
+	Program uint32
+}
+
+// helper to create an event stream
+func newEventStream(deregisterProc, program uint32) eventStream {
+	return eventStream{Events: make(chan event), DeregisterProc: deregisterProc, Program: program}
+}
+
 // libvirt error response
 type libvirtError struct {
 	Code     uint32
@@ -113,40 +130,24 @@ type libvirtError struct {
 	Level    uint32
 }
 
-func (l *Libvirt) connect() error {
-	payload := struct {
-		Padding [3]byte
-		Name    string
-		Flags   uint32
-	}{
-		Padding: [3]byte{0x1, 0x0, 0x0},
-		Name:    "qemu:///system",
-		Flags:   0,
-	}
-
-	buf, err := encode(&payload)
-	if err != nil {
-		return err
-	}
-
-	// libvirt requires that we call auth-list prior to connecting,
-	// event when no authentication is used.
-	_, err = l.request(constants.ProcAuthList, constants.Program, buf)
-	if err != nil {
-		return err
-	}
-
-	_, err = l.request(constants.ProcConnectOpen, constants.Program, buf)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (e libvirtError) Error() string {
+	return e.Message
 }
 
-func (l *Libvirt) disconnect() error {
-	_, err := l.request(constants.ProcConnectClose, constants.Program, nil)
-	return err
+// checkError is used to check whether an error is a libvirtError, and if it is,
+// whether its error code matches the one passed in. It will return false if
+// these conditions are not met.
+func checkError(err error, expectedError errorNumber) bool {
+	e, ok := err.(libvirtError)
+	if ok {
+		return e.Code == uint32(expectedError)
+	}
+	return false
+}
+
+// IsNotFound detects libvirt's ERR_NO_DOMAIN.
+func IsNotFound(err error) bool {
+	return checkError(err, errNoDomain)
 }
 
 // listen processes incoming data and routes
@@ -193,17 +194,32 @@ func (l *Libvirt) callback(id uint32, res response) {
 	c, ok := l.callbacks[id]
 	l.cm.Unlock()
 	if ok {
+		// we close the channel in deregister() so that we don't block here
+		// forever without a receiver. If that happens, this write will panic.
+		defer func() {
+			recover()
+		}()
 		c <- res
 	}
-
-	l.deregister(id)
 }
 
 // route sends incoming packets to their listeners.
 func (l *Libvirt) route(h *header, buf []byte) {
 	// route events to their respective listener
-	if h.Program == constants.ProgramQEMU && h.Procedure == constants.QEMUDomainMonitorEvent {
-		l.stream(buf)
+	var streamEvent event
+	switch {
+	case h.Program == constants.ProgramQEMU && h.Procedure == constants.QEMUDomainMonitorEvent:
+		streamEvent = &DomainEvent{}
+	case h.Program == constants.Program && h.Procedure == constants.ProcDomainEventCallbackLifecycle:
+		streamEvent = &DomainEventCallbackLifecycleMsg{}
+	}
+
+	if streamEvent != nil {
+		err := eventDecoder(buf, streamEvent)
+		if err != nil { // event was malformed, drop.
+			return
+		}
+		l.stream(streamEvent)
 		return
 	}
 
@@ -222,26 +238,27 @@ func (l *Libvirt) serial() uint32 {
 
 // stream decodes domain events and sends them
 // to the respective event listener.
-func (l *Libvirt) stream(buf []byte) {
-	e, err := decodeEvent(buf)
-	if err != nil {
-		// event was malformed, drop.
-		return
-	}
-
+func (l *Libvirt) stream(e event) error {
 	// send to event listener
 	l.em.Lock()
-	c, ok := l.events[e.CallbackID]
+	c, ok := l.events[e.GetCallbackID()]
 	l.em.Unlock()
+
 	if ok {
-		c <- e
+		// we close the channel in deregister() so that we don't block here
+		// forever without a receiver. If that happens, this write will panic.
+		defer func() {
+			recover()
+		}()
+		c.Events <- e
 	}
+	return nil
 }
 
 // addStream configures the routing for an event stream.
-func (l *Libvirt) addStream(id uint32, stream chan *DomainEvent) {
+func (l *Libvirt) addStream(id uint32, s eventStream) {
 	l.em.Lock()
-	l.events[id] = stream
+	l.events[id] = s
 	l.em.Unlock()
 }
 
@@ -249,7 +266,8 @@ func (l *Libvirt) addStream(id uint32, stream chan *DomainEvent) {
 // for the provided callback id. Upon successful de-registration the
 // callback handler is destroyed.
 func (l *Libvirt) removeStream(id uint32) error {
-	close(l.events[id])
+	stream := l.events[id]
+	close(stream.Events)
 
 	payload := struct {
 		CallbackID uint32
@@ -262,7 +280,7 @@ func (l *Libvirt) removeStream(id uint32) error {
 		return err
 	}
 
-	_, err = l.request(constants.QEMUConnectDomainMonitorEventDeregister, constants.ProgramQEMU, buf)
+	_, err = l.request(stream.DeregisterProc, stream.Program, buf)
 	if err != nil {
 		return err
 	}
@@ -284,8 +302,24 @@ func (l *Libvirt) register(id uint32, c chan response) {
 // deregister destroys a method response callback
 func (l *Libvirt) deregister(id uint32) {
 	l.cm.Lock()
-	close(l.callbacks[id])
-	delete(l.callbacks, id)
+	if _, ok := l.callbacks[id]; ok {
+		close(l.callbacks[id])
+		delete(l.callbacks, id)
+	}
+	l.cm.Unlock()
+}
+
+// deregisterAll closes all the waiting callback channels. This is used to clean
+// up if the connection to libvirt is lost. Callers waiting for responses will
+// return an error when the response channel is closed, rather than just
+// hanging.
+func (l *Libvirt) deregisterAll() {
+	l.cm.Lock()
+	for id := range l.callbacks {
+		// can't call deregister() here because we're already holding the lock.
+		close(l.callbacks[id])
+		delete(l.callbacks, id)
+	}
 	l.cm.Unlock()
 }
 
@@ -293,11 +327,111 @@ func (l *Libvirt) deregister(id uint32) {
 // returns response returned by server.
 // if response is not OK, decodes error from it and returns it.
 func (l *Libvirt) request(proc uint32, program uint32, payload []byte) (response, error) {
+	return l.requestStream(proc, program, payload, nil, nil)
+}
+
+func (l *Libvirt) processIncomingStream(c chan response, inStream io.Writer) (response, error) {
+	for {
+		resp, err := l.getResponse(c)
+		if err != nil {
+			return resp, err
+		}
+		// StatusOK here means end of stream
+		if resp.Status == StatusOK {
+			return resp, nil
+		}
+		// StatusError is handled in getResponse, so this is StatusContinue
+		// StatusContinue is valid here only for stream packets
+		// libvirtd breaks protocol and returns StatusContinue with empty Payload when stream finishes
+		if len(resp.Payload) == 0 {
+			return resp, nil
+		}
+		if inStream != nil {
+			_, err = inStream.Write(resp.Payload)
+			if err != nil {
+				return response{}, err
+			}
+		}
+	}
+}
+
+// requestStream performs a libvirt RPC request. The outStream and inStream
+// parameters are optional, and should be nil for RPC endpoints that don't
+// return a stream.
+func (l *Libvirt) requestStream(proc uint32, program uint32, payload []byte,
+	outStream io.Reader, inStream io.Writer) (response, error) {
 	serial := l.serial()
 	c := make(chan response)
 
 	l.register(serial, c)
+	defer l.deregister(serial)
 
+	err := l.sendPacket(serial, proc, program, payload, Call, StatusOK)
+	if err != nil {
+		return response{}, err
+	}
+
+	resp, err := l.getResponse(c)
+	if err != nil {
+		return resp, err
+	}
+
+	if outStream != nil {
+		abortOutStream := make(chan bool)
+		outStreamErr := make(chan error)
+		go func() {
+			outStreamErr <- l.sendStream(serial, proc, program, outStream, abortOutStream)
+		}()
+
+		// Even without incoming stream server sends confirmation once all data is received
+		resp, err = l.processIncomingStream(c, inStream)
+		if err != nil {
+			abortOutStream <- true
+			return resp, err
+		}
+
+		err = <-outStreamErr
+		if err != nil {
+			return response{}, err
+		}
+	} else if inStream != nil {
+		return l.processIncomingStream(c, inStream)
+	}
+
+	return resp, nil
+}
+
+func (l *Libvirt) sendStream(serial uint32, proc uint32, program uint32, stream io.Reader, abort chan bool) error {
+	// Keep total packet length under 4 MiB to follow possible limitation in libvirt server code
+	buf := make([]byte, 4*MiB-constants.HeaderSize)
+	for {
+		select {
+		case <-abort:
+			return l.sendPacket(serial, proc, program, nil, Stream, StatusError)
+		default:
+		}
+		n, err := stream.Read(buf)
+		if n > 0 {
+			err2 := l.sendPacket(serial, proc, program, buf[:n], Stream, StatusContinue)
+			if err2 != nil {
+				return err2
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return l.sendPacket(serial, proc, program, nil, Stream, StatusOK)
+			}
+			// keep original error
+			err2 := l.sendPacket(serial, proc, program, nil, Stream, StatusError)
+			if err2 != nil {
+				return err2
+			}
+			return err
+		}
+	}
+}
+
+func (l *Libvirt) sendPacket(serial uint32, proc uint32, program uint32, payload []byte, typ uint32, status uint32) error {
 	size := constants.PacketLengthSize + constants.HeaderSize
 	if payload != nil {
 		size += len(payload)
@@ -309,9 +443,9 @@ func (l *Libvirt) request(proc uint32, program uint32, payload []byte) (response
 			Program:   program,
 			Version:   constants.ProtocolVersion,
 			Procedure: proc,
-			Type:      Call,
+			Type:      typ,
 			Serial:    serial,
-			Status:    StatusOK,
+			Status:    status,
 		},
 	}
 
@@ -320,23 +454,23 @@ func (l *Libvirt) request(proc uint32, program uint32, payload []byte) (response
 	defer l.mu.Unlock()
 	err := binary.Write(l.w, binary.BigEndian, p)
 	if err != nil {
-		return response{}, err
+		return err
 	}
 
 	// write payload
 	if payload != nil {
 		err = binary.Write(l.w, binary.BigEndian, payload)
 		if err != nil {
-			return response{}, err
+			return err
 		}
 	}
 
-	if err := l.w.Flush(); err != nil {
-		return response{}, err
-	}
+	return l.w.Flush()
+}
 
+func (l *Libvirt) getResponse(c chan response) (response, error) {
 	resp := <-c
-	if resp.Status != StatusOK {
+	if resp.Status == StatusError {
 		return resp, decodeError(resp.Payload)
 	}
 
@@ -364,22 +498,19 @@ func decodeError(buf []byte) error {
 	if strings.Contains(e.Message, "unknown procedure") {
 		return ErrUnsupported
 	}
-
-	return errors.New(e.Message)
-}
-
-// decodeEvent extracts an event from the given byte slice.
-// Errors encountered will be returned along with a nil event.
-func decodeEvent(buf []byte) (*DomainEvent, error) {
-	var e DomainEvent
-
-	dec := xdr.NewDecoder(bytes.NewReader(buf))
-	_, err := dec.Decode(&e)
-	if err != nil {
-		return nil, err
+	// if libvirt returns ERR_OK, ignore the error
+	if checkError(e, errOk) {
+		return nil
 	}
 
-	return &e, nil
+	return e
+}
+
+// eventDecoder decoder an event from a xdr buffer.
+func eventDecoder(buf []byte, e interface{}) error {
+	dec := xdr.NewDecoder(bytes.NewReader(buf))
+	_, err := dec.Decode(e)
+	return err
 }
 
 // pktlen determines the length of an incoming rpc response.
@@ -388,13 +519,10 @@ func decodeEvent(buf []byte) (*DomainEvent, error) {
 func pktlen(r io.Reader) (uint32, error) {
 	buf := make([]byte, constants.PacketLengthSize)
 
-	for n := 0; n < cap(buf); {
-		nn, err := r.Read(buf)
-		if err != nil {
-			return 0, err
-		}
-
-		n += nn
+	// read exactly constants.PacketLengthSize bytes
+	_, err := io.ReadFull(r, buf)
+	if err != nil {
+		return 0, err
 	}
 
 	return binary.BigEndian.Uint32(buf), nil
@@ -404,13 +532,10 @@ func pktlen(r io.Reader) (uint32, error) {
 func extractHeader(r io.Reader) (*header, error) {
 	buf := make([]byte, constants.HeaderSize)
 
-	for n := 0; n < cap(buf); {
-		nn, err := r.Read(buf)
-		if err != nil {
-			return nil, err
-		}
-
-		n += nn
+	// read exactly constants.HeaderSize bytes
+	_, err := io.ReadFull(r, buf)
+	if err != nil {
+		return nil, err
 	}
 
 	h := &header{

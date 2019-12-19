@@ -12,7 +12,6 @@ REVIEWDOG=reviewdog
 REVIEWDOG_OPTIONS?=-diff "git diff master"
 REVIEWDOG_REPO=github.com/haya14busa/reviewdog/cmd/reviewdog
 XPACK_SUFFIX=x-pack/
-
 # PROJECTS_XPACK_PKG is a list of Beats that have independent packaging support
 # in the x-pack directory (rather than having the OSS build produce both sets
 # of artifacts). This will be removed once we complete the transition.
@@ -68,7 +67,7 @@ coverage-report:
 	@echo "Generated coverage report $(COVERAGE_DIR)/full.html"
 
 .PHONY: update
-update: notice
+update: vendor notice
 	@$(foreach var,$(PROJECTS) $(PROJECTS_XPACK_MAGE),$(MAKE) -C $(var) update || exit 1;)
 	@$(MAKE) -C deploy/kubernetes all
 
@@ -79,12 +78,6 @@ clean: mage
 	@$(MAKE) -C generator clean
 	@-mage -clean
 
-# Cleans up the vendor directory from unnecessary files
-# This should always be run after updating the dependencies
-.PHONY: clean-vendor
-clean-vendor:
-	@sh script/clean_vendor.sh
-
 .PHONY: check
 check: python-env
 	@$(foreach var,$(PROJECTS) dev-tools $(PROJECTS_XPACK_MAGE),$(MAKE) -C $(var) check || exit 1;)
@@ -93,9 +86,8 @@ check: python-env
 	@# Validate that all updates were committed
 	@$(MAKE) update
 	@$(MAKE) check-headers
-	@git diff | cat
 	@git update-index --refresh
-	@git diff-index --exit-code HEAD --
+	@git add --refresh .
 
 .PHONY: check-headers
 check-headers: mage
@@ -137,6 +129,11 @@ docs:
 notice: python-env
 	@echo "Generating NOTICE"
 	@$(PYTHON_ENV)/bin/python dev-tools/generate_notice.py .
+
+.PHONY: vendor
+vendor:
+	@echo "Getting and cleaning up dependencies"
+	@mage vendor
 
 # Sets up the virtual python environment
 .PHONY: python-env

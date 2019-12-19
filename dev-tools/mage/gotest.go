@@ -160,6 +160,7 @@ func GoTest(ctx context.Context, params GoTestArgs) error {
 	// Build args list to Go.
 	args := []string{"test"}
 	args = append(args, "-v")
+	args = append(args, "-mod=vendor")
 
 	if params.Race {
 		args = append(args, "-race")

@@ -37,6 +37,19 @@ type Args struct {
 // ArgOpt is a functional option adding info to Args once executed.
 type ArgOpt func(args *Args)
 
+type goInstall func(opts ...ArgOpt) error
+
+// Install
+var Install goInstall = runGoInstall
+
+func runGoInstall(opts ...ArgOpt) error {
+	args := buildArgs(opts)
+	return runVGo("install", args)
+}
+
+func (goInstall) Package(pkg string) ArgOpt { return posArg(pkg) }
+func (goInstall) Vendored() ArgOpt          { return flagArg("-mod", "vendor") }
+
 type goTest func(opts ...ArgOpt) error
 
 // Test runs `go test` and provides optionals for adding command line arguments.
@@ -64,6 +77,12 @@ func ListTestFiles(pkg string) ([]string, error) {
 	const tmpl = `{{ range .TestGoFiles }}{{ printf "%s\n" . }}{{ end }}` +
 		`{{ range .XTestGoFiles }}{{ printf "%s\n" . }}{{ end }}`
 
+	return getLines(callGo(nil, "list", "-f", tmpl, pkg))
+}
+
+// ListModulePath returns the path to the module in the cache.
+func ListModulePath(pkg string) ([]string, error) {
+	const tmpl = `{{.Dir}}`
 	return getLines(callGo(nil, "list", "-f", tmpl, pkg))
 }
 

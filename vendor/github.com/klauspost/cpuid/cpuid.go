@@ -26,6 +26,8 @@ const (
 	MSVM // Microsoft Hyper-V or Windows Virtual PC
 	VMware
 	XenHVM
+	Bhyve
+	Hygon
 )
 
 const (
@@ -71,11 +73,15 @@ const (
 	AVX512BW                // AVX-512 Byte and Word Instructions
 	AVX512VL                // AVX-512 Vector Length Extensions
 	AVX512VBMI              // AVX-512 Vector Bit Manipulation Instructions
+	AVX512VNNI              // AVX-512 Vector Neural Network Instructions
 	MPX                     // Intel MPX (Memory Protection Extensions)
 	ERMS                    // Enhanced REP MOVSB/STOSB
 	RDTSCP                  // RDTSCP Instruction
 	CX16                    // CMPXCHG16B Instruction
 	SGX                     // Software Guard Extensions
+	IBPB                    // Indirect Branch Restricted Speculation (IBRS) and Indirect Branch Predictor Barrier (IBPB)
+	STIBP                   // Single Thread Indirect Branch Predictors
+	VMX                     // Virtual Machine Extensions
 
 	// Performance indicators
 	SSE2SLOW // SSE2 is supported, but usually not faster
@@ -126,11 +132,15 @@ var flagNames = map[Flags]string{
 	AVX512BW:    "AVX512BW",    // AVX-512 Byte and Word Instructions
 	AVX512VL:    "AVX512VL",    // AVX-512 Vector Length Extensions
 	AVX512VBMI:  "AVX512VBMI",  // AVX-512 Vector Bit Manipulation Instructions
+	AVX512VNNI:  "AVX512VNNI",  // AVX-512 Vector Neural Network Instructions
 	MPX:         "MPX",         // Intel MPX (Memory Protection Extensions)
 	ERMS:        "ERMS",        // Enhanced REP MOVSB/STOSB
 	RDTSCP:      "RDTSCP",      // RDTSCP Instruction
 	CX16:        "CX16",        // CMPXCHG16B Instruction
 	SGX:         "SGX",         // Software Guard Extensions
+	IBPB:        "IBPB",        // Indirect Branch Restricted Speculation and Indirect Branch Predictor Barrier
+	STIBP:       "STIBP",       // Single Thread Indirect Branch Predictors
+	VMX:         "VMX",         // Virtual Machine Extensions
 
 	// Performance indicators
 	SSE2SLOW: "SSE2SLOW", // SSE2 supported, but usually not faster
@@ -192,7 +202,7 @@ func Detect() {
 	CPU.CacheLine = cacheLine()
 	CPU.Family, CPU.Model = familyModel()
 	CPU.Features = support()
-	CPU.SGX = sgx(CPU.Features&SGX != 0)
+	CPU.SGX = hasSGX(CPU.Features&SGX != 0)
 	CPU.ThreadsPerCore = threadsPerCore()
 	CPU.LogicalCores = logicalCores()
 	CPU.PhysicalCores = physicalCores()
@@ -215,6 +225,11 @@ func (c CPUInfo) Amd3dnow() bool {
 // Amd3dnowExt indicates support of AMD 3DNOW! Extended instructions
 func (c CPUInfo) Amd3dnowExt() bool {
 	return c.Features&AMD3DNOWEXT != 0
+}
+
+// VMX indicates support of VMX
+func (c CPUInfo) VMX() bool {
+	return c.Features&VMX != 0
 }
 
 // MMX indicates support of MMX instructions
@@ -427,6 +442,11 @@ func (c CPUInfo) AVX512VBMI() bool {
 	return c.Features&AVX512VBMI != 0
 }
 
+// AVX512VNNI indicates support of AVX-512 Vector Neural Network Instructions
+func (c CPUInfo) AVX512VNNI() bool {
+	return c.Features&AVX512VNNI != 0
+}
+
 // MPX indicates support of Intel MPX (Memory Protection Extensions)
 func (c CPUInfo) MPX() bool {
 	return c.Features&MPX != 0
@@ -437,12 +457,20 @@ func (c CPUInfo) ERMS() bool {
 	return c.Features&ERMS != 0
 }
 
+// RDTSCP Instruction is available.
 func (c CPUInfo) RDTSCP() bool {
 	return c.Features&RDTSCP != 0
 }
 
+// CX16 indicates if CMPXCHG16B instruction is available.
 func (c CPUInfo) CX16() bool {
 	return c.Features&CX16 != 0
+}
+
+// TSX is split into HLE (Hardware Lock Elision) and RTM (Restricted Transactional Memory) detection.
+// So TSX simply checks that.
+func (c CPUInfo) TSX() bool {
+	return c.Features&(HLE|RTM) == HLE|RTM
 }
 
 // Atom indicates an Atom processor
@@ -458,6 +486,11 @@ func (c CPUInfo) Intel() bool {
 // AMD returns true if vendor is recognized as AMD
 func (c CPUInfo) AMD() bool {
 	return c.VendorID == AMD
+}
+
+// Hygon returns true if vendor is recognized as Hygon
+func (c CPUInfo) Hygon() bool {
+	return c.VendorID == Hygon
 }
 
 // Transmeta returns true if vendor is recognized as Transmeta
@@ -515,7 +548,7 @@ func (c CPUInfo) LogicalCPU() int {
 // have many false negatives.
 func (c CPUInfo) VM() bool {
 	switch c.VendorID {
-	case MSVM, KVM, VMware, XenHVM:
+	case MSVM, KVM, VMware, XenHVM, Bhyve:
 		return true
 	}
 	return false
@@ -613,7 +646,7 @@ func logicalCores() int {
 		}
 		_, b, _, _ := cpuidex(0xb, 1)
 		return int(b & 0xffff)
-	case AMD:
+	case AMD, Hygon:
 		_, b, _, _ := cpuid(1)
 		return int((b >> 16) & 0xff)
 	default:
@@ -635,7 +668,7 @@ func physicalCores() int {
 	switch vendorID() {
 	case Intel:
 		return logicalCores() / threadsPerCore()
-	case AMD:
+	case AMD, Hygon:
 		if maxExtendedFunction() >= 0x80000008 {
 			_, _, c, _ := cpuid(0x80000008)
 			return int(c&0xff) + 1
@@ -658,6 +691,8 @@ var vendorMapping = map[string]Vendor{
 	"Microsoft Hv": MSVM,
 	"VMwareVMware": VMware,
 	"XenVMMXenVMM": XenHVM,
+	"bhyve bhyve ": Bhyve,
+	"HygonGenuine": Hygon,
 }
 
 func vendorID() Vendor {
@@ -730,7 +765,7 @@ func (c *CPUInfo) cacheSize() {
 				c.Cache.L3 = size
 			}
 		}
-	case AMD:
+	case AMD, Hygon:
 		// Untested.
 		if maxExtendedFunction() < 0x80000005 {
 			return
@@ -757,7 +792,7 @@ type SGXSupport struct {
 	MaxEnclaveSize64    int64
 }
 
-func sgx(available bool) (rval SGXSupport) {
+func hasSGX(available bool) (rval SGXSupport) {
 	rval.Available = available
 
 	if !available {
@@ -798,6 +833,9 @@ func support() Flags {
 	}
 	if (c & 1) != 0 {
 		rval |= SSE3
+	}
+	if (c & (1 << 5)) != 0 {
+		rval |= VMX
 	}
 	if (c & 0x00000200) != 0 {
 		rval |= SSSE3
@@ -846,7 +884,7 @@ func support() Flags {
 
 	// Check AVX2, AVX2 requires OS support, but BMI1/2 don't.
 	if mfi >= 7 {
-		_, ebx, ecx, _ := cpuidex(7, 0)
+		_, ebx, ecx, edx := cpuidex(7, 0)
 		if (rval&AVX) != 0 && (ebx&0x00000020) != 0 {
 			rval |= AVX2
 		}
@@ -879,6 +917,12 @@ func support() Flags {
 		}
 		if ebx&(1<<29) != 0 {
 			rval |= SHA
+		}
+		if edx&(1<<26) != 0 {
+			rval |= IBPB
+		}
+		if edx&(1<<27) != 0 {
+			rval |= STIBP
 		}
 
 		// Only detect AVX-512 features if XGETBV is supported
@@ -917,6 +961,9 @@ func support() Flags {
 				// ecx
 				if ecx&(1<<1) != 0 {
 					rval |= AVX512VBMI
+				}
+				if ecx&(1<<11) != 0 {
+					rval |= AVX512VNNI
 				}
 			}
 		}

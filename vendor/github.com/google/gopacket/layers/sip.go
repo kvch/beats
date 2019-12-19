@@ -245,11 +245,14 @@ func (s *SIP) NextLayerType() gopacket.LayerType {
 
 // DecodeFromBytes decodes the slice into the SIP struct.
 func (s *SIP) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+
 	// Init some vars for parsing follow-up
 	var countLines int
 	var line []byte
 	var err error
-	var offset int
+
+	// Clean leading new line
+	data = bytes.Trim(data, "\n")
 
 	// Iterate on all lines of the SIP Headers
 	// and stop when we reach the SDP (aka when the new line
@@ -267,13 +270,14 @@ func (s *SIP) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 				return err
 			}
 		}
-		offset += len(line)
 
 		// Trim the new line delimiters
 		line = bytes.Trim(line, "\r\n")
 
 		// Empty line, we hit Body
+		// Putting packet remain in Paypload
 		if len(line) == 0 {
+			s.BaseLayer.Payload = buffer.Bytes()
 			break
 		}
 
@@ -294,7 +298,6 @@ func (s *SIP) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 
 		countLines++
 	}
-	s.BaseLayer = BaseLayer{Contents: data[:offset], Payload: data[offset:]}
 
 	return nil
 }

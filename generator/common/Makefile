@@ -29,7 +29,6 @@ prepare-test:: ${GOPATH}/bin/mage
 	cd ${GOPATH}/src/github.com/elastic/beats/ ; \
 	export MODULE=elastic ; \
 	export METRICSET=test ; \
-	export GO111MODULE=off; \
 	export NEWBEAT_PROJECT_NAME=Testbeat ; \
 	export NEWBEAT_GITHUB_NAME=ruflin ; \
 	export NEWBEAT_BEAT_PATH=${BEAT_NAME} ; \

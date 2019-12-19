@@ -135,6 +135,7 @@ func Build(params BuildArgs) error {
 	// Spec
 	args := []string{
 		"build",
+		"-mod=vendor",
 		"-o",
 		filepath.Join(params.OutputDir, binaryName),
 	}
