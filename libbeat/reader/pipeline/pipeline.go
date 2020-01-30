@@ -37,6 +37,10 @@ func New(r io.Reader, c Config) (Pipeline, error) {
 		return Pipeline{}, err
 	}
 
+	return NewMessageReader(reader, c)
+}
+
+func NewMessageReader(reader reader.Reader, c Config) (Pipeline, error) {
 	if c.DockerJSON != nil {
 		// Docker json-file format, add custom parsing to the pipeline
 		reader = readjson.New(reader, c.DockerJSON.Stream, c.DockerJSON.Partial, c.DockerJSON.Format, c.DockerJSON.CRIFlags)

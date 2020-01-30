@@ -38,6 +38,7 @@ import (
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/common/backoff"
 	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/libbeat/reader"
 )
 
 // Reader reads entries from journal(s).
@@ -181,7 +182,7 @@ func (r *Reader) seek(cursor string) {
 
 // Next waits until a new event shows up and returns it.
 // It blocks until an event is returned or an error occurs.
-func (r *Reader) Next() (*beat.Event, error) {
+func (r *Reader) Next() (reader.Message, error) {
 	for {
 		select {
 		case <-r.done:
@@ -216,7 +217,13 @@ func (r *Reader) Next() (*beat.Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		event := r.toEvent(entry)
+		message := r.toMessage(entry)
+		state := checkpoint.JournalState{
+			Path:               r.config.Path,
+			Cursor:             entry.Cursor,
+			RealtimeTimestamp:  entry.RealtimeTimestamp,
+			MonotonicTimestamp: entry.MonotonicTimestamp,
+		}
 		r.backoff.Reset()
 
 		return event, nil
@@ -266,22 +273,14 @@ func (r *Reader) toEvent(entry *sdjournal.JournalEntry) *beat.Event {
 		}
 	}
 
-	state := checkpoint.JournalState{
-		Path:               r.config.Path,
-		Cursor:             entry.Cursor,
-		RealtimeTimestamp:  entry.RealtimeTimestamp,
-		MonotonicTimestamp: entry.MonotonicTimestamp,
-	}
-
 	fields.Put("event.created", time.Now())
 	receivedByJournal := time.Unix(0, int64(entry.RealtimeTimestamp)*1000)
 
-	event := beat.Event{
-		Timestamp: receivedByJournal,
-		Fields:    fields,
-		Private:   state,
+	message := reader.Message{
+		Ts:     receivedByJournal,
+		Fields: fields,
 	}
-	return &event
+	return message
 }
 
 func (r *Reader) convertNamedField(fc fieldConversion, value string) interface{} {
