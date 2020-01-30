@@ -50,7 +50,7 @@ import (
 	"github.com/elastic/beats/filebeat/input/file"
 	"github.com/elastic/beats/libbeat/reader"
 	"github.com/elastic/beats/libbeat/reader/debug"
-	"github.com/elastic/beats/libbeat/reader/multiline"
+	"github.com/elastic/beats/libbeat/reader/pipeline"
 	"github.com/elastic/beats/libbeat/reader/readfile"
 	"github.com/elastic/beats/libbeat/reader/readfile/encoding"
 	"github.com/elastic/beats/libbeat/reader/readjson"
@@ -424,6 +424,7 @@ func (h *Harvester) onMessage(
 			},
 		},
 	}
+
 	fields.DeepUpdate(message.Fields)
 
 	// Check if json fields exist
@@ -433,13 +434,12 @@ func (h *Harvester) onMessage(
 	}
 
 	var meta common.MapStr
-	timestamp := message.Ts
 	if h.config.JSON != nil && len(jsonFields) > 0 {
 		id, ts := readjson.MergeJSONFields(fields, jsonFields, &text, *h.config.JSON)
 		if !ts.IsZero() {
 			// there was a `@timestamp` key in the event, so overwrite
 			// the resulting timestamp
-			timestamp = ts
+			message.Ts = ts
 		}
 
 		if id != "" {
@@ -447,19 +447,13 @@ func (h *Harvester) onMessage(
 				"_id": id,
 			}
 		}
-	} else if &text != nil {
-		if fields == nil {
-			fields = common.MapStr{}
-		}
-		fields["message"] = text
 	}
 
-	err := forwarder.Send(beat.Event{
-		Timestamp: timestamp,
-		Fields:    fields,
-		Meta:      meta,
-		Private:   state,
-	})
+	message.Fields = fields
+	message.Meta = meta
+	evt := message.ToEvent(state)
+
+	err := forwarder.Send(evt)
 	return err == nil
 }
 
@@ -628,12 +622,10 @@ func (h *Harvester) cleanup() {
 // log_file implements io.Reader interface and encode reader is an adapter for io.Reader to
 // reader.Reader also handling file encodings. All other readers implement reader.Reader
 func (h *Harvester) newLogFileReader() (reader.Reader, error) {
-	var r reader.Reader
-	var err error
-
 	// TODO: NewLineReader uses additional buffering to deal with encoding and testing
 	//       for new lines in input stream. Simple 8-bit based encodings, or plain
 	//       don't require 'complicated' logic.
+	var err error
 	h.log, err = NewLog(h.source, h.config.LogConfig)
 	if err != nil {
 		return nil, err
@@ -644,32 +636,15 @@ func (h *Harvester) newLogFileReader() (reader.Reader, error) {
 		return nil, err
 	}
 
-	r, err = readfile.NewEncodeReader(reader, readfile.Config{
-		Codec:      h.encoding,
-		BufferSize: h.config.BufferSize,
-		Terminator: h.config.LineTerminator,
+	return pipeline.New(reader, pipeline.Config{
+		File: readfile.Config{
+			Codec:      h.encoding,
+			BufferSize: h.config.BufferSize,
+			Terminator: h.config.LineTerminator,
+		},
+		JSON:       h.config.JSON,
+		Multiline:  h.config.Multiline,
+		DockerJSON: h.config.DockerJSON,
+		MaxBytes:   h.config.MaxBytes,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	if h.config.DockerJSON != nil {
-		// Docker json-file format, add custom parsing to the pipeline
-		r = readjson.New(r, h.config.DockerJSON.Stream, h.config.DockerJSON.Partial, h.config.DockerJSON.Format, h.config.DockerJSON.CRIFlags)
-	}
-
-	if h.config.JSON != nil {
-		r = readjson.NewJSONReader(r, h.config.JSON)
-	}
-
-	r = readfile.NewStripNewline(r, h.config.LineTerminator)
-
-	if h.config.Multiline != nil {
-		r, err = multiline.New(r, "\n", h.config.MaxBytes, h.config.Multiline)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return readfile.NewLimitReader(r, h.config.MaxBytes), nil
 }
