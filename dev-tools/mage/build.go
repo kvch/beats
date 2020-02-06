@@ -132,6 +132,13 @@ func Build(params BuildArgs) error {
 	}
 	env["CGO_ENABLED"] = cgoEnabled
 
+	// after Go 1.14 becomes supported in Beats, this is no longer needed
+	if _, ok := env["GOFLAGS"]; ok {
+		env["GOFLAGS"] = strings.Join(env["GOFLAGS"], " -mod=vendor")
+	} else {
+		env["GOFLAGS"] = "-mod=vendor"
+	}
+
 	// Spec
 	args := []string{
 		"build",
