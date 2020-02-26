@@ -415,8 +415,6 @@ def detect_license_summary(content):
         return "LGPL-3.0"
     if any(sentence in content[0:1500] for sentence in UNIVERSAL_PERMISSIVE_LICENSE_TITLES):
         return "UPL-1.0"
-    if any(sentence in content[0:1500] for sentence in ISC_LICENSE_TITLE):
-        return "ISC"
     if any(sentence in content[0:1500] for sentence in ECLIPSE_PUBLIC_LICENSE_TITLES):
         return "EPL-1.0"
     return "UNKNOWN"

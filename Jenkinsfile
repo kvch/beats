@@ -182,16 +182,6 @@ pipeline {
               }
             }
           }
-        }
-        stage('Auditbeat x-pack'){
-          agent { label 'ubuntu && immutable' }
-          options { skipDefaultCheckout() }
-          when {
-            beforeAgent true
-            expression {
-              return env.BUILD_AUDITBEAT_XPACK != "false"
-            }
-          }
           steps {
             makeTarget("Auditbeat x-pack Linux", "-C x-pack/auditbeat testsuite")
           }
@@ -402,7 +392,23 @@ pipeline {
               steps {
                 mageTargetWin("Winlogbeat Windows Unit test", "-d winlogbeat goUnitTest")
               }
+<<<<<<< HEAD
             }
+          }
+        }
+        stage('Winlogbeat Windows x-pack'){
+          agent { label 'windows-immutable && windows-2019' }
+          options { skipDefaultCheckout() }
+          when {
+            beforeAgent true
+            expression {
+              return params.windowsTest && env.BUILD_WINLOGBEAT_XPACK != "false"
+=======
+>>>>>>> upstream/master
+            }
+          }
+          steps {
+            mageTargetWin("Winlogbeat Windows Unit test", "-d x-pack/winlogbeat  update:fields goUnitTest")
           }
         }
         stage('Winlogbeat Windows x-pack'){
@@ -484,28 +490,46 @@ pipeline {
           stages {
             stage('Generators Metricbeat Linux'){
               steps {
+<<<<<<< HEAD
                 makeTarget("Generators Metricbeat Linux", "-C generator/_templates/metricbeat test")
                 makeTarget("Generators Metricbeat Linux", "-C generator/_templates/metricbeat test-package")
+=======
+                makeTarget("Generators Metricbeat Linux", "-C generator/metricbeat test")
+                makeTarget("Generators Metricbeat Linux", "-C generator/metricbeat test-package")
+>>>>>>> upstream/master
               }
             }
             stage('Generators Beat Linux'){
               steps {
+<<<<<<< HEAD
                 makeTarget("Generators Beat Linux", "-C generator/_templates/beat test")
                 makeTarget("Generators Beat Linux", "-C generator/_templates/beat test-package")
+=======
+                makeTarget("Generators Beat Linux", "-C generator/beat test")
+                makeTarget("Generators Beat Linux", "-C generator/beat test-package")
+>>>>>>> upstream/master
               }
             }
             stage('Generators Metricbeat Mac OS X'){
               agent { label 'macosx' }
               options { skipDefaultCheckout() }
               steps {
+<<<<<<< HEAD
                 makeTarget("Generators Metricbeat Mac OS X", "-C generator/_templates/metricbeat test")
+=======
+                makeTarget("Generators Metricbeat Mac OS X", "-C generator/metricbeat test")
+>>>>>>> upstream/master
               }
             }
             stage('Generators Beat Mac OS X'){
               agent { label 'macosx' }
               options { skipDefaultCheckout() }
               steps {
+<<<<<<< HEAD
                 makeTarget("Generators Beat Mac OS X", "-C generator/_templates/beat test")
+=======
+                makeTarget("Generators Beat Mac OS X", "-C generator/beat test")
+>>>>>>> upstream/master
               }
             }
           }
