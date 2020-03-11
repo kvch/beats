@@ -44,8 +44,24 @@ import (
 )
 
 const (
-	kafkaDefaultHost = "localhost"
-	kafkaDefaultPort = "9092"
+	kafkaDefaultHost       = "localhost"
+	kafkaDefaultPort       = "9092"
+	kafkaSecureDefaultPort = "9093"
+)
+
+var (
+	kafkaHost = fmt.Sprintf("%v:%v",
+		getenv("KAFKA_HOST", kafkaDefaultHost),
+		getenv("KAFKA_PORT", kafkaDefaultPort),
+	)
+	kafkaKerberosHost = fmt.Sprintf("%v:%v",
+		getenv("KAFKA_KERBEROS_HOST", "kafka_kerberos.elastic"),
+		getenv("KAFKA_KERBEROS_PORT", kafkaSecureDefaultPort),
+	)
+	testTopicOffsets = map[string]*topicOffsetMap{
+		kafkaHost:         &topicOffsetMap{},
+		kafkaKerberosHost: &topicOffsetMap{},
+	}
 )
 
 type eventInfo struct {
@@ -57,135 +73,194 @@ func TestKafkaPublish(t *testing.T) {
 
 	id := strconv.Itoa(rand.New(rand.NewSource(int64(time.Now().Nanosecond()))).Int())
 	testTopic := fmt.Sprintf("test-libbeat-%s", id)
-	logType := fmt.Sprintf("log-type-%s", id)
+	//logType := fmt.Sprintf("log-type-%s", id)
+
+	//err := obtainKerberosTGT()
+	//if err != nil {
+	//	t.Fatalf("error obtaining TGT from KDC %+v", err)
+	//}
 
 	tests := []struct {
 		title  string
 		config map[string]interface{}
+		host   string
 		topic  string
 		events []eventInfo
 	}{
+		//{
+		//	"publish single event to test topic",
+		//	nil,
+		//	"",
+		//	testTopic,
+		//	single(common.MapStr{
+		//		"host":    "test-host",
+		//		"message": id,
+		//	}),
+		//},
+		//{
+		//	"publish single event with topic from type",
+		//	map[string]interface{}{
+		//		"topic": "%{[type]}",
+		//	},
+		//	"",
+		//	logType,
+		//	single(common.MapStr{
+		//		"host":    "test-host",
+		//		"type":    logType,
+		//		"message": id,
+		//	}),
+		//},
+		//{
+		//	"publish single event with formating to test topic",
+		//	map[string]interface{}{
+		//		"codec.format.string": "%{[message]}",
+		//	},
+		//	"",
+		//	testTopic,
+		//	single(common.MapStr{
+		//		"host":    "test-host",
+		//		"message": id,
+		//	}),
+		//},
+		//{
+		//	"batch publish to test topic",
+		//	nil,
+		//	"",
+		//	testTopic,
+		//	randMulti(5, 100, common.MapStr{
+		//		"host": "test-host",
+		//	}),
+		//},
+		//{
+		//	"batch publish to test topic from type",
+		//	map[string]interface{}{
+		//		"topic": "%{[type]}",
+		//	},
+		//	"",
+		//	logType,
+		//	randMulti(5, 100, common.MapStr{
+		//		"host": "test-host",
+		//		"type": logType,
+		//	}),
+		//},
+		//{
+		//	"batch publish with random partitioner",
+		//	map[string]interface{}{
+		//		"partition.random": map[string]interface{}{
+		//			"group_events": 1,
+		//		},
+		//	},
+		//	"",
+		//	testTopic,
+		//	randMulti(1, 10, common.MapStr{
+		//		"host": "test-host",
+		//		"type": "log",
+		//	}),
+		//},
+		//{
+		//	"batch publish with round robin partitioner",
+		//	map[string]interface{}{
+		//		"partition.round_robin": map[string]interface{}{
+		//			"group_events": 1,
+		//		},
+		//	},
+		//	"",
+		//	testTopic,
+		//	randMulti(1, 10, common.MapStr{
+		//		"host": "test-host",
+		//		"type": "log",
+		//	}),
+		//},
+		//{
+		//	"batch publish with hash partitioner without key (fallback to random)",
+		//	map[string]interface{}{
+		//		"partition.hash": map[string]interface{}{},
+		//	},
+		//	"",
+		//	testTopic,
+		//	randMulti(1, 10, common.MapStr{
+		//		"host": "test-host",
+		//		"type": "log",
+		//	}),
+		//},
+		//{
+		//	// warning: this test uses random keys. In case keys are reused, test might fail.
+		//	"batch publish with hash partitioner with key",
+		//	map[string]interface{}{
+		//		"key":            "%{[message]}",
+		//		"partition.hash": map[string]interface{}{},
+		//	},
+		//	"",
+		//	testTopic,
+		//	randMulti(1, 10, common.MapStr{
+		//		"host": "test-host",
+		//		"type": "log",
+		//	}),
+		//},
+		//{
+		//	// warning: this test uses random keys. In case keys are reused, test might fail.
+		//	"batch publish with fields hash partitioner",
+		//	map[string]interface{}{
+		//		"partition.hash.hash": []string{
+		//			"@timestamp",
+		//			"type",
+		//			"message",
+		//		},
+		//	},
+		//	"",
+		//	testTopic,
+		//	randMulti(1, 10, common.MapStr{
+		//		"host": "test-host",
+		//		"type": "log",
+		//	}),
+		//},
+		//{
+		//	"publish single event to test topic behind Kerberos",
+		//	map[string]interface{}{
+		//		"hosts": []string{kafkaKerberosHost},
+		//		"kerberos": map[string]interface{}{
+		//			"auth_type":    "keytab",
+		//			"username":     "elastic",
+		//			"keytab":       "/etc/security/keytabs/elastic.keytab",
+		//			"config_path":  "/etc/krb5.conf",
+		//			"service_name": "kafka",
+		//			"realm":        "ELASTIC",
+		//		},
+		//		"metadata": map[string]interface{}{
+		//			"retry.max": "0",
+		//		},
+		//	},
+		//	kafkaKerberosHost,
+		//	testTopic,
+		//	single(common.MapStr{
+		//		"host":    "test-host",
+		//		"message": id,
+		//	}),
+		//},
 		{
-			"publish single event to test topic",
-			nil,
+			"publish single event to test topic behind Kerberos with username and password",
+			map[string]interface{}{
+				"hosts": []string{kafkaKerberosHost},
+				"kerberos": map[string]interface{}{
+					"auth_type":    "password",
+					"username":     "elastic",
+					"password":     "changeme",
+					"config_path":  "testdata/krb5.conf",
+					"service_name": "kafka",
+					"realm":        "ELASTIC",
+				},
+			},
+			kafkaKerberosHost,
 			testTopic,
 			single(common.MapStr{
 				"host":    "test-host",
 				"message": id,
-			}),
-		},
-		{
-			"publish single event with topic from type",
-			map[string]interface{}{
-				"topic": "%{[type]}",
-			},
-			logType,
-			single(common.MapStr{
-				"host":    "test-host",
-				"type":    logType,
-				"message": id,
-			}),
-		},
-		{
-			"publish single event with formating to test topic",
-			map[string]interface{}{
-				"codec.format.string": "%{[message]}",
-			},
-			testTopic,
-			single(common.MapStr{
-				"host":    "test-host",
-				"message": id,
-			}),
-		},
-		{
-			"batch publish to test topic",
-			nil,
-			testTopic,
-			randMulti(5, 100, common.MapStr{
-				"host": "test-host",
-			}),
-		},
-		{
-			"batch publish to test topic from type",
-			map[string]interface{}{
-				"topic": "%{[type]}",
-			},
-			logType,
-			randMulti(5, 100, common.MapStr{
-				"host": "test-host",
-				"type": logType,
-			}),
-		},
-		{
-			"batch publish with random partitioner",
-			map[string]interface{}{
-				"partition.random": map[string]interface{}{
-					"group_events": 1,
-				},
-			},
-			testTopic,
-			randMulti(1, 10, common.MapStr{
-				"host": "test-host",
-				"type": "log",
-			}),
-		},
-		{
-			"batch publish with round robin partitioner",
-			map[string]interface{}{
-				"partition.round_robin": map[string]interface{}{
-					"group_events": 1,
-				},
-			},
-			testTopic,
-			randMulti(1, 10, common.MapStr{
-				"host": "test-host",
-				"type": "log",
-			}),
-		},
-		{
-			"batch publish with hash partitioner without key (fallback to random)",
-			map[string]interface{}{
-				"partition.hash": map[string]interface{}{},
-			},
-			testTopic,
-			randMulti(1, 10, common.MapStr{
-				"host": "test-host",
-				"type": "log",
-			}),
-		},
-		{
-			// warning: this test uses random keys. In case keys are reused, test might fail.
-			"batch publish with hash partitioner with key",
-			map[string]interface{}{
-				"key":            "%{[message]}",
-				"partition.hash": map[string]interface{}{},
-			},
-			testTopic,
-			randMulti(1, 10, common.MapStr{
-				"host": "test-host",
-				"type": "log",
-			}),
-		},
-		{
-			// warning: this test uses random keys. In case keys are reused, test might fail.
-			"batch publish with fields hash partitioner",
-			map[string]interface{}{
-				"partition.hash.hash": []string{
-					"@timestamp",
-					"type",
-					"message",
-				},
-			},
-			testTopic,
-			randMulti(1, 10, common.MapStr{
-				"host": "test-host",
-				"type": "log",
 			}),
 		},
 	}
 
 	defaultConfig := map[string]interface{}{
-		"hosts":   []string{getTestKafkaHost()},
+		"hosts":   []string{kafkaHost},
 		"topic":   testTopic,
 		"timeout": "1s",
 	}
@@ -198,6 +273,7 @@ func TestKafkaPublish(t *testing.T) {
 		if test.config != nil {
 			cfg.Merge(makeConfig(t, test.config))
 		}
+		fmt.Println("config merged")
 
 		t.Run(name, func(t *testing.T) {
 			grp, err := makeKafka(nil, beat.Info{Beat: "libbeat", IndexPrefix: "testbeat"}, outputs.NewNilObserver(), cfg)
@@ -209,6 +285,7 @@ func TestKafkaPublish(t *testing.T) {
 			if err := output.Connect(); err != nil {
 				t.Fatal(err)
 			}
+			fmt.Println("connected")
 			assert.Equal(t, output.index, "testbeat")
 			defer output.Close()
 
@@ -221,17 +298,30 @@ func TestKafkaPublish(t *testing.T) {
 				}
 
 				wg.Add(1)
-				output.Publish(context.Background(), batch)
+				err := output.Publish(context.Background(), batch)
+				fmt.Println("vege", err)
 			}
 
 			// wait for all published batches to be ACKed
 			wg.Wait()
+			fmt.Println("vege")
 
 			expected := flatten(test.events)
 
 			// check we can find all event in topic
 			timeout := 20 * time.Second
-			stored := testReadFromKafkaTopic(t, test.topic, len(expected), timeout)
+			kafkaConf, err := readConfig(cfg)
+			conf, err := newSaramaConfig(nil, kafkaConf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			host := test.host
+			if host == "" {
+				host = kafkaHost
+			}
+			fmt.Println(host)
+			stored := testReadFromKafkaTopic(t, test.topic, len(expected), timeout, host, conf)
+			fmt.Println("stored", stored)
 
 			// validate messages
 			if len(expected) != len(stored) {
@@ -314,13 +404,6 @@ func getenv(name, defaultValue string) string {
 	return strDefault(os.Getenv(name), defaultValue)
 }
 
-func getTestKafkaHost() string {
-	return fmt.Sprintf("%v:%v",
-		getenv("KAFKA_HOST", kafkaDefaultHost),
-		getenv("KAFKA_PORT", kafkaDefaultPort),
-	)
-}
-
 func makeConfig(t *testing.T, in map[string]interface{}) *common.Config {
 	cfg, err := common.NewConfigFrom(in)
 	if err != nil {
@@ -329,9 +412,9 @@ func makeConfig(t *testing.T, in map[string]interface{}) *common.Config {
 	return cfg
 }
 
-func newTestConsumer(t *testing.T) sarama.Consumer {
-	hosts := []string{getTestKafkaHost()}
-	consumer, err := sarama.NewConsumer(hosts, nil)
+func newTestConsumer(t *testing.T, hosts []string, c *sarama.Config) sarama.Consumer {
+	fmt.Printf("%+v\n", c)
+	consumer, err := sarama.NewConsumer(hosts, c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,26 +463,28 @@ func (m *topicOffsetMap) SetOffset(topic string, partition int32, offset int64) 
 	m.m[topic][partition] = offset
 }
 
-var testTopicOffsets = topicOffsetMap{}
-
 func testReadFromKafkaTopic(
 	t *testing.T, topic string, nMessages int,
 	timeout time.Duration,
+	host string,
+	c *sarama.Config,
 ) []*sarama.ConsumerMessage {
-	consumer := newTestConsumer(t)
+	consumer := newTestConsumer(t, []string{host}, c)
 	defer func() {
 		consumer.Close()
 	}()
 
+	fmt.Println("kerfezem a particiokat", host, topic)
 	partitions, err := consumer.Partitions(topic)
 	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Println("partitions", partitions)
 
 	done := make(chan struct{})
 	msgs := make(chan *sarama.ConsumerMessage)
 	for _, partition := range partitions {
-		offset := testTopicOffsets.GetOffset(topic, partition)
+		offset := testTopicOffsets[host].GetOffset(topic, partition)
 		partitionConsumer, err := consumer.ConsumePartition(topic, partition, offset)
 		if err != nil {
 			t.Fatal(err)
@@ -415,7 +500,7 @@ func testReadFromKafkaTopic(
 					if !ok {
 						break
 					}
-					testTopicOffsets.SetOffset(topic, p, msg.Offset+1)
+					testTopicOffsets[host].SetOffset(topic, p, msg.Offset+1)
 					msgs <- msg
 				case <-done:
 					break

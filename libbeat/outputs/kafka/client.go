@@ -102,7 +102,7 @@ func (c *client) Connect() error {
 	// try to connect
 	producer, err := sarama.NewAsyncProducer(c.hosts, &c.config)
 	if err != nil {
-		c.log.Errorf("Kafka connect fails with: %+v", err)
+		fmt.Printf("Kafka connect fails with: %+v\n", err)
 		return err
 	}
 
@@ -149,16 +149,19 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 		d := &events[i]
 		msg, err := c.getEventMessage(d)
 		if err != nil {
+			fmt.Printf(">>>> err %+v\n", err)
 			c.log.Errorf("Dropping event: %+v", err)
 			ref.done()
 			c.observer.Dropped(1)
 			continue
 		}
+		fmt.Printf("msg %+v\n", msg)
 
 		msg.ref = ref
 		msg.initProducerMessage()
 		ch <- &msg.msg
 	}
+	fmt.Println("DONE")
 
 	return nil
 }
@@ -238,6 +241,7 @@ func (c *client) successWorker(ch <-chan *sarama.ProducerMessage) {
 	for libMsg := range ch {
 		msg := libMsg.Metadata.(*message)
 		msg.ref.done()
+		fmt.Println("yo", libMsg)
 	}
 }
 
