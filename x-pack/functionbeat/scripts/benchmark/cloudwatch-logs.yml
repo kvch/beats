@@ -1,0 +1,14 @@
+Transform: 'AWS::Serverless-2016-10-31'
+Resources:
+  Functionbeat:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Runtime: go1.x
+      Timeout: 120
+      Handler: functionbeat-aws
+      CodeUri: /home/n/go/src/github.com/elastic/beats/x-pack/functionbeat/pkg
+      MemorySize: 192
+      Environment:
+        Variables:
+          ENABLED_FUNCTIONS: cloudwatch
+          BEAT_STRICT_PERMS: false
