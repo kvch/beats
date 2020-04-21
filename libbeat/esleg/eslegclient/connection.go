@@ -26,12 +26,6 @@ import (
 	"net/url"
 	"time"
 
-	"gopkg.in/jcmturner/gokrb5.v7/config"
-	"gopkg.in/jcmturner/gokrb5.v7/keytab"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-
-	"github.com/pkg/errors"
-
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/common/transport"
 	"github.com/elastic/beats/v7/libbeat/common/transport/kerberos"
@@ -40,12 +34,16 @@ import (
 	"github.com/elastic/beats/v7/libbeat/testing"
 )
 
+type esHTTPClient interface {
+	Do(req *http.Request) (resp *http.Response, err error)
+}
+
 // Connection manages the connection for a given client.
 type Connection struct {
 	ConnectionSettings
 
 	Encoder BodyEncoder
-	HTTP    *http.Client
+	HTTP    esHTTPClient
 
 	version common.Version
 	log     *logp.Logger
@@ -124,7 +122,8 @@ func NewConnection(s ConnectionSettings) (*Connection, error) {
 		}
 	}
 
-	httpClient := &http.Client{
+	var httpClient esHTTPClient
+	httpClient = &http.Client{
 		Transport: &http.Transport{
 			Dial:            dialer.Dial,
 			DialTLS:         tlsDialer.Dial,
@@ -135,20 +134,18 @@ func NewConnection(s ConnectionSettings) (*Connection, error) {
 	}
 
 	if s.Kerberos != nil {
-		httpClient = &http.Client{
-			Dial:    dialer.Dial,
-			Proxy:   proxy,
+		c := &http.Client{
+			Transport: &http.Transport{
+				Dial:  dialer.Dial,
+				Proxy: proxy,
+			},
 			Timeout: s.Timeout,
 		}
-
-		kTab, err := keytab.Load(s.Kerberos.KeytabPath)
+		httpClient, err = kerberos.NewClient(s.Kerberos, c, s.URL)
 		if err != nil {
-			return errors.Wrapf(err, "cannot open keytab file %s", s.Kerberos.Keytab)
+			return nil, err
 		}
-		krb5Conf, err := &config.Load(s.Kerberos.ConfigPath)
-		krbClient := gokrb5.NewClientWithKeytab(s.Kerberos.Username, s.Kerberos.Realm, kTab, krb5Conf)
-		spn := fmt.Sprintf("HTTP/%s@%s", s.URL, s.Kerberos.Realm)
-		httpClient = spnego.NewClient(krbClient, httpClient, spn)
+		logp.Info("kerberos client created")
 	}
 
 	return &Connection{

@@ -17,7 +17,7 @@ BEAT_VENDOR?=Elastic ## @packaging Name of the vendor of the application
 BEAT_GOPATH=$(firstword $(subst :, ,${GOPATH}))
 BEAT_REF_YAML?=true
 ES_BEATS?=..## @community_beat Must be set to ./vendor/github.com/elastic/beats. It must always be a relative path.
-GOPACKAGES?=$(shell go list ${BEAT_IMPORT_PATH}/... | grep -v /scripts/cmd/ )
+GOPACKAGES?=$(shell go list ${BEAT_IMPORT_PATH}/... | grep outputs/elasticsearch )
 PACKER_TEMPLATES_DIR?=${ES_BEATS}/dev-tools/packer ## @Building Directory of templates that are used by "make release"
 NOTICE_FILE?=../NOTICE.txt
 LICENSE_FILE?=../licenses/APACHE-LICENSE-2.0.txt
@@ -50,6 +50,8 @@ ES_USER?=beats
 ES_PASS?=testing
 ES_HOST_SSL?=elasticsearchssl
 ES_PORT_SSL?=9200
+ES_KERBEROS_HOST?=elasticsearch_kerberos
+ES_KERBEROS_PORT?=9200
 KIBANA_HOST?=kibana
 KIBANA_PORT?=5601
 # Kibana's Elaticsearch user
@@ -424,6 +426,8 @@ write-environment:
 	echo "ES_PORT=${ES_PORT}" >> ${BUILD_DIR}/test.env
 	echo "ES_HOST_SSL=${ES_HOST_SSL}" >> ${BUILD_DIR}/test.env
 	echo "ES_PORT_SSL=${ES_PORT_SSL}" >> ${BUILD_DIR}/test.env
+	echo "ES_KERBEROS_HOST=${ES_KERBEROS_HOST}" >> ${BUILD_DIR}/test.env
+	echo "ES_KERBEROS_PORT=${ES_KERBEROS_PORT}" >> ${BUILD_DIR}/test.env
 	echo "ES_USER=${ES_USER}" >> ${BUILD_DIR}/test.env
 	echo "ES_PASS=${ES_PASS}" >> ${BUILD_DIR}/test.env
 	echo "ES_SUPERUSER_USER=${ES_SUPERUSER_USER}" >> ${BUILD_DIR}/test.env
