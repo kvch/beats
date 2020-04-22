@@ -3,6 +3,7 @@ package kerberos
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/pkg/errors"
 	krbclient "gopkg.in/jcmturner/gokrb5.v7/client"
@@ -21,7 +22,7 @@ type Client struct {
 	spClient *spnego.Client
 }
 
-func NewClient(config *Config, httpClient *http.Client, url string) (*Client, error) {
+func NewClient(config *Config, httpClient *http.Client, esurl string) (*Client, error) {
 	var krbClient *krbclient.Client
 	krbConf, err := krbconfig.Load(config.ConfigPath)
 	if err != nil {
@@ -41,7 +42,11 @@ func NewClient(config *Config, httpClient *http.Client, url string) (*Client, er
 		return nil, InvalidAuthType
 	}
 
-	spn := fmt.Sprintf("HTTP/%s@%s", url, config.Realm)
+	parsedURL, err := url.Parse(esurl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse elasticsearch URL %s: %v", esurl, err)
+	}
+	spn := fmt.Sprintf("HTTP/%s@%s", parsedURL.Hostname(), config.Realm)
 	return &Client{
 		spClient: spnego.NewClient(krbClient, httpClient, spn),
 	}, nil

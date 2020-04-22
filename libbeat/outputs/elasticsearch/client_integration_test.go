@@ -80,7 +80,7 @@ func TestClientPublishEventKerberosAware(t *testing.T) {
 			"auth_type":   "password",
 			"config_path": "testdata/krb5.conf",
 			"username":    "elastic",
-			"password":    "changem",
+			"password":    "changeme",
 			"realm":       "ELASTIC",
 		},
 	})

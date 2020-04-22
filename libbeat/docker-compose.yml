@@ -112,7 +112,9 @@ services:
       - "indices.id_field_data.enabled=true"
       - "xpack.license.self_generated.type=trial"
       - "xpack.security.authc.realms.kerberos.ELASTIC.order=1"
-      - "xpack.security.authc.realms.kerberos.ELASTIC.keytab.path=/usr/share/elasticsearch/config/kerberos/es.keytab"
+      - "xpack.security.authc.realms.kerberos.ELASTIC.keytab.path=/usr/share/elasticsearch/config/kerberos/service.keytab"
+      - "xpack.security.authc.realms.kerberos.ELASTIC.krb.debug=true"
+      - "xpack.security.authc.realms.kerberos.ELASTIC.remove_realm_name=true"
     volumes:
       - ${ES_BEATS}/testing/environments/docker/elasticsearch/kerberos:/usr/share/elasticsearch/config/kerberos:ro
     ports:

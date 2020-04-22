@@ -7,7 +7,7 @@ add_principal_to_elastic_realm() {
     echo "Adding $username principal"
     kadmin.local -q "delete_principal -force $username@$REALM"
     echo ""
-    kadmin.local -q "addprinc -e aes128-cts-hmac-sha1-96:normal -pw $password $username@$REALM"
+    kadmin.local -q "addprinc -e AES256-CTS-HMAC-SHA1-96:normal -pw $password $username@$REALM"
     echo ""
 }
 
@@ -27,6 +27,8 @@ KDC_KADMIN_SERVER=$(hostname -f)
 tee /etc/krb5.conf <<EOF
 [libdefaults]
 	default_realm = $REALM
+    allow_weak_crypto = true
+    ignore_acceptor_hostname = true
 
 [realms]
 	$REALM = {
@@ -34,9 +36,6 @@ tee /etc/krb5.conf <<EOF
 		kadmind_port = 749
 		kdc = $KDC_KADMIN_SERVER
 		admin_server = $KDC_KADMIN_SERVER
-		default_tgs_enctypes = aes128-cts-hmac-sha1-96
-		default_tkt_enctypes = aes128-cts-hmac-sha1-96
-		permitted_enctypes = aes128-cts-hmac-sha1-96
 	}
 EOF
 echo ""
@@ -82,21 +81,7 @@ for principal in $PRINCIPALS; do
   add_principal_to_elastic_realm $principal $PASSWORD
 done
 
-#echo "Adding noPermissions principal"
-#kadmin.local -q "delete_principal -force noPermissions@$REALM"
-#echo ""
-#kadmin.local -q "addprinc -pw $PASSWORD noPermissions@$REALM"
-#echo ""
+kadmin.local -q "list_principals"
+cat /etc/hosts
 
-echo "==================================================================================="
-echo "==== Run the services ============================================================="
-echo "==================================================================================="
-# We want the container to keep running until we explicitly kill it.
-# So the last command cannot immediately exit. See
-#   https://docs.docker.com/engine/reference/run/#detached-vs-foreground
-# for a better explanation.
-
-ktutil
-
-krb5kdc
-kadmind -nofork
+sleep infinity

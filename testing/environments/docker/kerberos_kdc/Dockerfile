@@ -18,6 +18,7 @@ ENV LIBBEAT_USER_PRINCIPAL elastic
 ENV ES_SERVICE_PRINCIPAL HTTP/elasticsearch_kerberos
 ENV PASSWORD changeme
 ENV PRINCIPALS "$LIBBEAT_USER_PRINCIPAL $ES_SERVICE_PRINCIPAL"
+ENV KRB5_TRACE /dev/stdout
 
 COPY init-script.sh /tmp/
 CMD /tmp/init-script.sh
