@@ -15,27 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package inputs
+package filestream
 
 import (
-	"github.com/elastic/beats/v7/filebeat/beater"
-	"github.com/elastic/beats/v7/filebeat/input/filestream"
-	"github.com/elastic/beats/v7/filebeat/input/unix"
-	v2 "github.com/elastic/beats/v7/filebeat/input/v2"
-	"github.com/elastic/beats/v7/libbeat/beat"
-	"github.com/elastic/beats/v7/libbeat/logp"
+	"fmt"
+
+	"github.com/elastic/beats/v7/libbeat/common/file"
 )
 
-func Init(info beat.Info, log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return append(
-		genericInputs(log, components),
-		osInputs(info, log, components)...,
-	)
+type state struct {
+	Source         string       `json:"source" struct:"source"`
+	Offset         int64        `json:"offset" struct:"offset"`
+	FileStateOS    file.StateOS `json:"file_state_os" struct:"file_state_os"`
+	IdentifierName string       `json:"identifier_name" struct:"identifier_name"`
 }
 
-func genericInputs(log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return []v2.Plugin{
-		filestream.Plugin(log, components),
-		unix.Plugin(),
-	}
+func (s *state) String() string {
+	return fmt.Sprintf(
+		"{Source: %v, Offset: %v, FileStateOS: %v, IdentifierName: %v}",
+		s.Source,
+		s.Offset,
+		s.FileStateOS,
+		s.IdentifierName,
+	)
 }

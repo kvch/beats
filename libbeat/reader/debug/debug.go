@@ -116,6 +116,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 }
 
 func (r *Reader) Close() error {
+	logp.Info("DEBUG CLOSING")
 	return r.reader.Close()
 }
 

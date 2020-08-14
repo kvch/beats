@@ -15,27 +15,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package inputs
+package input_logfile
 
 import (
-	"github.com/elastic/beats/v7/filebeat/beater"
-	"github.com/elastic/beats/v7/filebeat/input/filestream"
-	"github.com/elastic/beats/v7/filebeat/input/unix"
-	v2 "github.com/elastic/beats/v7/filebeat/input/v2"
-	"github.com/elastic/beats/v7/libbeat/beat"
-	"github.com/elastic/beats/v7/libbeat/logp"
+	"os"
+
+	"github.com/elastic/go-concert/unison"
 )
 
-func Init(info beat.Info, log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return append(
-		genericInputs(log, components),
-		osInputs(info, log, components)...,
-	)
+const (
+	OpDone Operation = iota
+	OpCreate
+	OpWrite
+	OpDelete
+	OpRename
+)
+
+type Operation uint8
+
+type FSEvent struct {
+	NewPath string
+	OldPath string
+	Op      Operation
+	Info    os.FileInfo
 }
 
-func genericInputs(log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return []v2.Plugin{
-		filestream.Plugin(log, components),
-		unix.Plugin(),
-	}
+// FSScanner retrieves a list of files from the file system.
+type FSScanner interface {
+	GetFiles() map[string]os.FileInfo
+}
+
+// FSWatcher returns file events of the monitored files.
+type FSWatcher interface {
+	Run(unison.Canceler)
+	Event() FSEvent
 }

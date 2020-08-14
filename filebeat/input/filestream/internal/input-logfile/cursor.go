@@ -15,27 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package inputs
+package input_logfile
 
-import (
-	"github.com/elastic/beats/v7/filebeat/beater"
-	"github.com/elastic/beats/v7/filebeat/input/filestream"
-	"github.com/elastic/beats/v7/filebeat/input/unix"
-	v2 "github.com/elastic/beats/v7/filebeat/input/v2"
-	"github.com/elastic/beats/v7/libbeat/beat"
-	"github.com/elastic/beats/v7/libbeat/logp"
-)
-
-func Init(info beat.Info, log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return append(
-		genericInputs(log, components),
-		osInputs(info, log, components)...,
-	)
+// Cursor allows the input to check if cursor status has been stored
+// in the past and unpack the status into a custom structure.
+type Cursor struct {
+	store    *store
+	resource *resource
 }
 
-func genericInputs(log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return []v2.Plugin{
-		filestream.Plugin(log, components),
-		unix.Plugin(),
+func makeCursor(store *store, res *resource) Cursor {
+	return Cursor{store: store, resource: res}
+}
+
+// IsNew returns true if no cursor information has been stored
+// for the current Source.
+func (c Cursor) IsNew() bool { return c.resource.IsNew() }
+
+// Unpack deserialized the cursor state into to. Unpack fails if no pointer is
+// given, or if the structure to points to is not compatible with the document
+// stored.
+func (c Cursor) Unpack(to interface{}) error {
+	if c.IsNew() {
+		return nil
 	}
+	return c.resource.UnpackCursor(to)
 }

@@ -15,27 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package inputs
+package filestream
 
 import (
-	"github.com/elastic/beats/v7/filebeat/beater"
-	"github.com/elastic/beats/v7/filebeat/input/filestream"
-	"github.com/elastic/beats/v7/filebeat/input/unix"
-	v2 "github.com/elastic/beats/v7/filebeat/input/v2"
+	"time"
+
+	"github.com/elastic/beats/v7/journalbeat/pkg/journalfield"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
-func Init(info beat.Info, log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return append(
-		genericInputs(log, components),
-		osInputs(info, log, components)...,
-	)
-}
+func eventFromFields(
+	log *logp.Logger,
+	timestamp uint64,
+	entryFields map[string]string,
+	saveRemoteHostname bool,
+) beat.Event {
+	created := time.Now()
+	c := journalfield.NewConverter(log, nil)
+	fields := c.Convert(entryFields)
+	fields.Put("event.kind", "event")
 
-func genericInputs(log *logp.Logger, components beater.StateStore) []v2.Plugin {
-	return []v2.Plugin{
-		filestream.Plugin(log, components),
-		unix.Plugin(),
+	// if entry is coming from a remote journal, add_host_metadata overwrites the source hostname, so it
+	// has to be copied to a different field
+	if saveRemoteHostname {
+		remoteHostname, err := fields.GetValue("host.hostname")
+		if err == nil {
+			fields.Put("log.source.address", remoteHostname)
+		}
+	}
+
+	fields.Put("event.created", created)
+	receivedByJournal := time.Unix(0, int64(timestamp)*1000)
+
+	return beat.Event{
+		Timestamp: receivedByJournal,
+		Fields:    fields,
 	}
 }

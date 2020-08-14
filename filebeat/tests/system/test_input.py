@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import unittest
+from parameterized import parameterized
 
 from beat.beat import Proc
 
@@ -15,12 +16,14 @@ Tests for the input functionality.
 
 class Test(BaseTest):
 
-    def test_ignore_older_files(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_ignore_older_files(self, input_name):
         """
         Should ignore files there were not modified for longer then
         the `ignore_older` setting.
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="1s"
         )
@@ -48,12 +51,14 @@ class Test(BaseTest):
 
         proc.check_kill_and_wait()
 
-    def test_not_ignore_old_files(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_not_ignore_old_files(self, input_name):
         """
         Should not ignore files there were modified more recent than
         the ignore_older settings.
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="15s"
         )
@@ -78,8 +83,10 @@ class Test(BaseTest):
         objs = self.read_output()
         assert len(objs) == 5
 
-    def test_rotating_close_inactive_larger_write_rate(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_rotating_close_inactive_larger_write_rate(self, input_name):
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="10s",
             close_inactive="1s",
@@ -109,9 +116,11 @@ class Test(BaseTest):
 
         proc.check_kill_and_wait()
 
-    def test_exclude_files(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_exclude_files(self, input_name):
 
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             exclude_files=[".gz$"]
         )
@@ -141,8 +150,10 @@ class Test(BaseTest):
         assert 1 == len(output)
         assert output[0]["message"] == "line in log file"
 
-    def test_rotating_close_inactive_low_write_rate(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_rotating_close_inactive_low_write_rate(self, input_name):
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="10s",
             close_inactive="1s",
@@ -179,7 +190,7 @@ class Test(BaseTest):
         # wait for file to be closed due to close_inactive
         self.wait_until(
             lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+                "Closing because close_inactive of 1s reached."),
             max_timeout=10)
 
         # wait a bit longer (on 1.0.1 this would cause the harvester
@@ -199,7 +210,8 @@ class Test(BaseTest):
 
         filebeat.check_kill_and_wait()
 
-    def test_shutdown_no_inputs(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_shutdown_no_inputs(self, input_name):
         """
         In case no inputs are defined, filebeat must shut down and report an error
         """
@@ -216,12 +228,14 @@ class Test(BaseTest):
 
         filebeat.check_wait(exit_code=1)
 
-    def test_no_paths_defined(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_no_paths_defined(self, input_name):
         """
         In case a input is defined but doesn't contain any paths, input must return error which
         leads to shutdown of filebeat because of configuration error
         """
         self.render_config_template(
+            type=input_name,
         )
 
         filebeat = self.start_beat()
@@ -239,11 +253,13 @@ class Test(BaseTest):
 
         filebeat.check_wait(exit_code=1)
 
-    def test_files_added_late(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_files_added_late(self, input_name):
         """
         Tests that inputs stay running even though no harvesters are started yet
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
         )
 
@@ -268,12 +284,14 @@ class Test(BaseTest):
 
         filebeat.check_kill_and_wait()
 
-    def test_close_inactive(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_close_inactive(self, input_name):
         """
         Test that close_inactive closes the file but reading
         is picked up again after scan_frequency
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="1h",
             close_inactive="1s",
@@ -306,7 +324,7 @@ class Test(BaseTest):
         # wait for file to be closed due to close_inactive
         self.wait_until(
             lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+                "Closing because close_inactive of 1s reached"),
             max_timeout=10)
 
         # write second line
@@ -321,14 +339,17 @@ class Test(BaseTest):
 
         filebeat.check_kill_and_wait()
 
-    def test_close_inactive_file_removal(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_close_inactive_file_removal(self, input_name):
         """
         Test that close_inactive still applies also if the file to close was removed
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
             ignore_older="1h",
             close_inactive="3s",
+            close_removed="false",
             scan_frequency="0.1s",
         )
 
@@ -360,19 +381,22 @@ class Test(BaseTest):
         # wait for file to be closed due to close_inactive
         self.wait_until(
             lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+                "Closing because close_inactive of 3s reached"),
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
 
-    def test_close_inactive_file_rotation_and_removal(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_close_inactive_file_rotation_and_removal(self, input_name):
         """
         Test that close_inactive still applies also if the file to close was removed
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/test.log",
             ignore_older="1h",
             close_inactive="3s",
+            close_removed="false",
             scan_frequency="0.1s",
         )
 
@@ -406,13 +430,13 @@ class Test(BaseTest):
         # wait for file to be closed due to close_inactive
         self.wait_until(
             lambda: self.log_contains(
-                # Still checking for old file name as filename does not change in harvester
-                "Closing file: "),
+                "Closing because close_inactive of 3s reached."),
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
 
-    def test_close_inactive_file_rotation_and_removal2(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_close_inactive_file_rotation_and_removal2(self, input_name):
         """
         Test that close_inactive still applies also if file was rotated,
         new file created, and rotated file removed.
@@ -423,6 +447,7 @@ class Test(BaseTest):
         renamed_file = os.path.join(log_path, "b.log")
 
         self.render_config_template(
+            type=input_name,
             path=testfile,
             ignore_older="1h",
             close_inactive="3s",
@@ -467,16 +492,18 @@ class Test(BaseTest):
         self.wait_until(
             lambda: self.log_contains_count(
                 # Checking if two files were closed
-                "Closing file: ") == 2,
+                "Closing because close_inactive of 3s reached.") == 2,
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
 
-    def test_skip_symlinks(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_skip_symlinks(self, input_name):
         """
         Test that symlinks are skipped
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/*",
         )
 
@@ -557,11 +584,13 @@ class Test(BaseTest):
 
         filebeat.check_kill_and_wait()
 
-    def test_input_filter_dropfields(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_input_filter_dropfields(self, input_name):
         """
         Check drop_fields filtering action at a input level
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/test.log",
             input_processors=[{
                 "drop_fields": {
@@ -582,11 +611,13 @@ class Test(BaseTest):
         assert "offset" not in output
         assert "message" in output
 
-    def test_input_filter_includefields(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_input_filter_includefields(self, input_name):
         """
         Check include_fields filtering action at a input level
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/test.log",
             input_processors=[{
                 "include_fields": {
@@ -607,11 +638,13 @@ class Test(BaseTest):
         assert "message" not in output
         assert "log.offset" in output
 
-    def test_restart_recursive_glob(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_restart_recursive_glob(self, input_name):
         """
         Check that file reading via recursive glob patterns continues after restart
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/**",
             scan_frequency="1s"
         )
@@ -645,11 +678,13 @@ class Test(BaseTest):
 
         filebeat.check_kill_and_wait()
 
-    def test_disable_recursive_glob(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_disable_recursive_glob(self, input_name):
         """
         Check that the recursive glob can be disabled from the config.
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/log/**",
             scan_frequency="1s",
             disable_recursive_glob=True,
@@ -665,11 +700,13 @@ class Test(BaseTest):
             max_timeout=10)
         filebeat.check_kill_and_wait()
 
-    def test_input_processing_pipeline_disable_host(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_input_processing_pipeline_disable_host(self, input_name):
         """
         Check processing_pipeline.disable_host in input config.
         """
         self.render_config_template(
+            type=input_name,
             path=os.path.abspath(self.working_dir) + "/test.log",
             publisher_pipeline={
                 "disable_host": True,
@@ -685,7 +722,8 @@ class Test(BaseTest):
         output = self.read_output()
         assert "host.name" not in output[0]
 
-    def test_path_based_identity_tracking(self):
+    @parameterized.expand([("log"),("filestream")])
+    def test_path_based_identity_tracking(self, input_name):
         """
         Renamed files are picked up again as the path of the file has changed.
         """
