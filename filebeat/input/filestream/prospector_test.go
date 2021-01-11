@@ -381,6 +381,10 @@ type harvesterStart string
 
 func (h harvesterStart) String() string { return string(h) }
 
+type harvesterContinue string
+
+func (h harvesterContinue) String() string { return string(h) }
+
 type harvesterStop string
 
 func (h harvesterStop) String() string { return string(h) }
@@ -399,6 +403,10 @@ func newTestHarvesterGroup() *testHarvesterGroup {
 
 func (t *testHarvesterGroup) Start(_ input.Context, s loginp.Source) {
 	t.events = append(t.events, harvesterStart(s.Name()))
+}
+
+func (t *testHarvesterGroup) Continue(_ input.Context, p, s loginp.Source) {
+	t.events = append(t.events, harvesterContinue(s.Name()))
 }
 
 func (t *testHarvesterGroup) Stop(s loginp.Source) {

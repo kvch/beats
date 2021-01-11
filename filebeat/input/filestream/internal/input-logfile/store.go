@@ -230,7 +230,7 @@ func (s *sourceStore) UpdateIdentifiers(getNewID func(v Value) (string, interfac
 			// the copy start from the last known ACKed position.
 			// This might lead to duplicates if configurations are adapted
 			// for inputs with the same ID are changed.
-			r := res.copyWithNewKey(newKey)
+			r := res.CopyWithNewKey(newKey)
 			r.cursorMeta = updatedMeta
 			r.stored = false
 			s.store.writeState(r)
@@ -398,7 +398,7 @@ func (r *resource) inSyncStateSnapshot() state {
 	}
 }
 
-func (r *resource) copyWithNewKey(key string) *resource {
+func (r *resource) CopyWithNewKey(key string) *resource {
 	internalState := r.internalState
 
 	// This is required to prevent the cleaner from removing the
