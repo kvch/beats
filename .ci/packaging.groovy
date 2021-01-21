@@ -135,11 +135,9 @@ pipeline {
                     'linux/386',
                     'linux/arm64',
                     'linux/armv7',
-                    // The platforms above are disabled temporarly as crossbuild images are
-                    // not available. See: https://github.com/elastic/golang-crossbuild/issues/71
-                    //'linux/ppc64le',
-                    //'linux/mips64',
-                    //'linux/s390x',
+                    'linux/ppc64le',
+                    'linux/mips64',
+                    'linux/s390x',
                     'windows/amd64',
                     'windows/386',
                     (params.macos ? '' : 'darwin/amd64'),
