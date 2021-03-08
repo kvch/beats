@@ -80,6 +80,22 @@ func (r *readerGroup) newContext(id string, cancelation v2.Canceler) (context.Co
 	return ctx, cancel, nil
 }
 
+func (r *readerGroup) waitUntilNewContext(id string, cancelation v2.Canceler) (context.Context, context.CancelFunc, error) {
+	for cancelation.Err() == nil {
+		context, cancel, err := r.newContext(id, cancelation)
+		if err != nil {
+			if err == ErrHarvesterAlreadyRunning {
+				continue
+			}
+		}
+		return context, cancel, err
+	}
+	if cancelation.Err() == context.Canceled {
+		return nil, nil, nil
+	}
+	return nil, nil, cancelation.Err()
+}
+
 func (r *readerGroup) remove(id string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -106,6 +122,8 @@ func (r *readerGroup) hasID(id string) bool {
 type HarvesterGroup interface {
 	// Start starts a Harvester and adds it to the readers list.
 	Start(input.Context, Source)
+	// Restart starts a Harvester if it might be already running.
+	Restart(input.Context, Source)
 	// Stop cancels the reader of a given Source.
 	Stop(Source)
 	// StopGroup cancels all running Harvesters.
@@ -118,17 +136,32 @@ type defaultHarvesterGroup struct {
 	harvester    Harvester
 	cleanTimeout time.Duration
 	store        *store
+	identifier   *sourceIdentifier
 	tg           unison.TaskGroup
 }
 
 // Start starts the Harvester for a Source. It does not block.
 func (hg *defaultHarvesterGroup) Start(ctx input.Context, s Source) {
-	sourceName := s.Name()
-
-	ctx.Logger = ctx.Logger.With("source", sourceName)
+	ctx.Logger = ctx.Logger.With("source", hg.identifier.ID(s))
 	ctx.Logger.Debug("Starting harvester for file")
 
-	hg.tg.Go(func(canceler unison.Canceler) error {
+	hg.tg.Go(startHarvester(ctx, hg, s, false))
+}
+
+// Restart starts the Harvester for a Source if a Harvester is already running it waits for it
+// to shut down for a specified timeout. It does not block.
+func (hg *defaultHarvesterGroup) Restart(ctx input.Context, s Source) {
+	ctx.Logger = ctx.Logger.With("source", hg.identifier.ID(s))
+	ctx.Logger.Debug("Restarting harvester for file")
+
+	// we are waiting for five seconds so harvester has enough time to shut down
+	hg.tg.Go(startHarvester(ctx, hg, s, true))
+}
+
+func startHarvester(ctx input.Context, hg *defaultHarvesterGroup, s Source, mustWait bool) func(canceler unison.Canceler) error {
+	srcID := hg.identifier.ID(s)
+
+	return func(canceler unison.Canceler) error {
 		defer func() {
 			if v := recover(); v != nil {
 				err := fmt.Errorf("harvester panic with: %+v\n%s", v, debug.Stack())
@@ -137,15 +170,23 @@ func (hg *defaultHarvesterGroup) Start(ctx input.Context, s Source) {
 		}()
 		defer ctx.Logger.Debug("Stopped harvester for file")
 
-		harvesterCtx, cancelHarvester, err := hg.readers.newContext(sourceName, canceler)
+		harvesterCtx, cancelHarvester, err := hg.readers.newContext(srcID, canceler)
 		if err != nil {
-			return fmt.Errorf("error while adding new reader to the bookkeeper %v", err)
+			if err == ErrHarvesterAlreadyRunning && mustWait {
+				harvesterCtx, cancelHarvester, err = hg.readers.waitUntilNewContext(srcID, canceler)
+				if err != nil {
+					return fmt.Errorf("error while waiting for new reader to the bookkeeper %v", err)
+				}
+			} else {
+				return fmt.Errorf("error while adding new reader to the bookkeeper %v", err)
+			}
 		}
+
 		ctx.Cancelation = harvesterCtx
 		defer cancelHarvester()
-		defer hg.readers.remove(sourceName)
+		defer hg.readers.remove(srcID)
 
-		resource, err := lock(ctx, hg.store, sourceName)
+		resource, err := lock(ctx, hg.store, srcID)
 		if err != nil {
 			return fmt.Errorf("error while locking resource: %v", err)
 		}
@@ -168,14 +209,15 @@ func (hg *defaultHarvesterGroup) Start(ctx input.Context, s Source) {
 		if err != nil && err != context.Canceled {
 			return fmt.Errorf("error while running harvester: %v", err)
 		}
+
 		return nil
-	})
+	}
 }
 
 // Stop stops the running Harvester for a given Source.
 func (hg *defaultHarvesterGroup) Stop(s Source) {
 	hg.tg.Go(func(_ unison.Canceler) error {
-		hg.readers.remove(s.Name())
+		hg.readers.remove(hg.identifier.ID(s))
 		return nil
 	})
 }

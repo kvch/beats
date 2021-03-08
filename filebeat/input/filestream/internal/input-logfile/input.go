@@ -66,6 +66,7 @@ func (inp *managedInput) Run(
 		cleanTimeout: inp.cleanTimeout,
 		harvester:    inp.harvester,
 		store:        groupStore,
+		identifier:   inp.sourceIdentifier,
 		tg:           unison.TaskGroup{},
 	}
 
@@ -78,27 +79,37 @@ func (inp *managedInput) Run(
 	return nil
 }
 
+func privateReporterFunc(acked int, private []interface{}) {
+	var n uint
+	var last int
+	for i := 0; i < len(private); i++ {
+		current := private[i]
+		if current == nil {
+			continue
+		}
+
+		if _, ok := current.(*updateOp); !ok {
+			continue
+		}
+
+		n++
+		last = i
+	}
+
+	if n == 0 {
+		return
+	}
+	private[last].(*updateOp).Execute(n)
+}
+
 func newInputACKHandler(log *logp.Logger) beat.ACKer {
-	return acker.EventPrivateReporter(func(acked int, private []interface{}) {
-		var n uint
-		var last int
-		for i := 0; i < len(private); i++ {
-			current := private[i]
-			if current == nil {
-				continue
-			}
+	return acker.EventPrivateReporter(privateReporterFunc)
+}
 
-			if _, ok := current.(*updateOp); !ok {
-				continue
-			}
+func CustomPrivateReporter(fn func()) func(acked int, private []interface{}) {
+	return func(acked int, private []interface{}) {
+		fn()
 
-			n++
-			last = i
-		}
-
-		if n == 0 {
-			return
-		}
-		private[last].(*updateOp).Execute(n)
-	})
+		privateReporterFunc(acked, private)
+	}
 }

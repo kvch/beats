@@ -34,6 +34,7 @@ import (
 	v2 "github.com/elastic/beats/v7/filebeat/input/v2"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/acker"
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/statestore"
 	"github.com/elastic/beats/v7/libbeat/statestore/storetest"
@@ -176,9 +177,8 @@ func (e *inputTestingEnvironment) requireOffsetInRegistry(filename string, expec
 		e.t.Fatalf("cannot stat file when cheking for offset: %+v", err)
 	}
 
-	identifier, _ := newINodeDeviceIdentifier(nil)
-	src := identifier.GetSource(loginp.FSEvent{Info: fi, Op: loginp.OpCreate, NewPath: filepath})
-	entry := e.getRegistryState(src.Name())
+	id := getIDFromPath(filepath, fi)
+	entry := e.getRegistryState(id)
 
 	require.Equal(e.t, expectedOffset, entry.Cursor.Offset)
 }
@@ -191,15 +191,19 @@ func (e *inputTestingEnvironment) requireNoEntryInRegistry(filename string) {
 	}
 
 	inputStore, _ := e.stateStore.Access()
-
-	identifier, _ := newINodeDeviceIdentifier(nil)
-	src := identifier.GetSource(loginp.FSEvent{Info: fi, Op: loginp.OpCreate, NewPath: filepath})
+	id := getIDFromPath(filepath, fi)
 
 	var entry registryEntry
-	err = inputStore.Get(src.Name(), &entry)
+	err = inputStore.Get(id, &entry)
 	if err == nil {
-		e.t.Fatalf("key is not expected to be present '%s'", src.Name())
+		e.t.Fatalf("key is not expected to be present '%s'", id)
 	}
+}
+
+func getIDFromPath(filepath string, fi os.FileInfo) string {
+	identifier, _ := newINodeDeviceIdentifier(nil)
+	src := identifier.GetSource(loginp.FSEvent{Info: fi, Op: loginp.OpCreate, NewPath: filepath})
+	return "filestream::.global::" + src.Name()
 }
 
 // requireOffsetInRegistry checks if the expected offset is set for a file.
@@ -224,10 +228,7 @@ func (e *inputTestingEnvironment) getRegistryState(key string) registryEntry {
 // waitUntilEventCount waits until total count events arrive to the client.
 func (e *inputTestingEnvironment) waitUntilEventCount(count int) {
 	for {
-		sum := 0
-		for _, c := range e.pipeline.clients {
-			sum += len(c.GetEvents())
-		}
+		sum := len(e.pipeline.GetAllEvents())
 		if sum == count {
 			return
 		}
@@ -306,7 +307,8 @@ func (s *testInputStore) CleanupInterval() time.Duration {
 }
 
 type mockClient struct {
-	publishes  []beat.Event
+	publishing []beat.Event
+	published  []beat.Event
 	ackHandler beat.ACKer
 	closed     bool
 	mtx        sync.Mutex
@@ -317,7 +319,7 @@ func (c *mockClient) GetEvents() []beat.Event {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	return c.publishes
+	return c.published
 }
 
 // Publish mocks the Client Publish method
@@ -330,11 +332,21 @@ func (c *mockClient) PublishAll(events []beat.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	c.publishing = append(c.publishing, events...)
 	for _, event := range events {
-		c.publishes = append(c.publishes, event)
 		c.ackHandler.AddEvent(event, true)
 	}
 	c.ackHandler.ACKEvents(len(events))
+
+	for _, event := range events {
+		c.published = append(c.published, event)
+	}
+}
+
+func (c *mockClient) waitUntilPublishingHasStarted() {
+	for len(c.publishing) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // Close mocks the Client Close method
@@ -352,12 +364,56 @@ func (c *mockClient) Close() error {
 
 // mockPipelineConnector mocks the PipelineConnector interface
 type mockPipelineConnector struct {
-	clients []*mockClient
-	mtx     sync.Mutex
+	blocking     bool
+	clients      []*mockClient
+	clientCancel []context.CancelFunc
+	mtx          sync.Mutex
+}
+
+func (pc *mockPipelineConnector) ConnectWith(config beat.ClientConfig) (beat.Client, error) {
+	pc.mtx.Lock()
+	defer pc.mtx.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &mockClient{
+		ackHandler: newMockACKHandler(ctx, pc.blocking, config),
+	}
+
+	pc.clients = append(pc.clients, c)
+	pc.clientCancel = append(pc.clientCancel, cancel)
+
+	return c, nil
+
+}
+
+func (pc *mockPipelineConnector) cancelClient(i int) {
+	pc.mtx.Lock()
+	defer pc.mtx.Unlock()
+
+	if len(pc.clientCancel) < i+1 {
+		return
+	}
+
+	pc.clientCancel[i]()
+}
+
+func newMockACKHandler(starter context.Context, blocking bool, config beat.ClientConfig) beat.ACKer {
+	if !blocking {
+		return config.ACKHandler
+	}
+
+	return acker.EventPrivateReporter(loginp.CustomPrivateReporter(func() {
+		for starter.Err() == nil {
+		}
+	}))
+
 }
 
 // GetAllEvents returns all events associated with a pipeline
 func (pc *mockPipelineConnector) GetAllEvents() []beat.Event {
+	pc.mtx.Lock()
+	defer pc.mtx.Unlock()
+
 	var evList []beat.Event
 	for _, clientEvents := range pc.clients {
 		evList = append(evList, clientEvents.GetEvents()...)
@@ -369,18 +425,4 @@ func (pc *mockPipelineConnector) GetAllEvents() []beat.Event {
 // Connect mocks the PipelineConnector Connect method
 func (pc *mockPipelineConnector) Connect() (beat.Client, error) {
 	return pc.ConnectWith(beat.ClientConfig{})
-}
-
-// ConnectWith mocks the PipelineConnector ConnectWith method
-func (pc *mockPipelineConnector) ConnectWith(config beat.ClientConfig) (beat.Client, error) {
-	pc.mtx.Lock()
-	defer pc.mtx.Unlock()
-
-	c := &mockClient{
-		ackHandler: config.ACKHandler,
-	}
-
-	pc.clients = append(pc.clients, c)
-
-	return c, nil
 }

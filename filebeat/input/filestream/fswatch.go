@@ -142,10 +142,21 @@ func (w *fileWatcher) watch(ctx unison.Canceler) {
 		}
 
 		if prevInfo.ModTime() != info.ModTime() {
-			select {
-			case <-ctx.Done():
-				return
-			case w.events <- writeEvent(path, info):
+			fmt.Println(prevInfo.Size(), info.Size())
+			// if a file has been changed according to modtime but the size is the same
+			// it is still considered truncation.
+			if prevInfo.Size() >= info.Size() {
+				select {
+				case <-ctx.Done():
+					return
+				case w.events <- truncateEvent(path, info):
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					return
+				case w.events <- writeEvent(path, info):
+				}
 			}
 		}
 
@@ -196,6 +207,10 @@ func createEvent(path string, fi os.FileInfo) loginp.FSEvent {
 
 func writeEvent(path string, fi os.FileInfo) loginp.FSEvent {
 	return loginp.FSEvent{Op: loginp.OpWrite, OldPath: path, NewPath: path, Info: fi}
+}
+
+func truncateEvent(path string, fi os.FileInfo) loginp.FSEvent {
+	return loginp.FSEvent{Op: loginp.OpTruncate, OldPath: path, NewPath: path, Info: fi}
 }
 
 func renamedEvent(oldPath, path string, fi os.FileInfo) loginp.FSEvent {

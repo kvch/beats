@@ -181,6 +181,11 @@ func (s *sourceStore) Remove(src Source) error {
 	return s.store.remove(key)
 }
 
+func (s *sourceStore) UpdateCursor(src Source, cur interface{}) error {
+	key := s.identifier.ID(src)
+	return s.store.updateCursor(key, cur)
+}
+
 // CleanIf sets the TTL of a resource if the predicate return true.
 func (s *sourceStore) CleanIf(pred func(v Value) bool) {
 	s.store.ephemeralStore.mu.Lock()
@@ -292,6 +297,20 @@ func (s *store) writeState(r *resource) {
 		r.stored = true
 		r.internalInSync = true
 	}
+}
+
+func (s *store) updateCursor(key string, cur interface{}) error {
+	r := s.ephemeralStore.Find(key, false)
+	if r == nil {
+		return fmt.Errorf("resource '%s' not found", key)
+	}
+	op, err := createUpdateOp(s, r, cur)
+	if err != nil {
+		return err
+	}
+	op.Execute(1)
+
+	return nil
 }
 
 // Removes marks an entry for removal by setting its TTL to zero.

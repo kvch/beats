@@ -91,11 +91,11 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 	source := &testSource{"/path/to/test"}
 
 	requireSourceAddedToBookkeeper := func(t *testing.T, hg *defaultHarvesterGroup, s Source) {
-		require.True(t, hg.readers.hasID(s.Name()))
+		require.True(t, hg.readers.hasID(hg.identifier.ID(s)))
 	}
 
 	requireSourceRemovedFromBookkeeper := func(t *testing.T, hg *defaultHarvesterGroup, s Source) {
-		require.False(t, hg.readers.hasID(s.Name()))
+		require.False(t, hg.readers.hasID(hg.identifier.ID(s)))
 	}
 
 	t.Run("assert a harvester is started in a goroutine", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 
 		gorountineChecker.WaitUntilIncreased(2)
 		// error is expected as a harvester group was expected to start twice for the same source
-		for !hg.readers.hasID(source.Name()) {
+		for !hg.readers.hasID(hg.identifier.ID(source)) {
 		}
 		time.Sleep(3 * time.Millisecond)
 
@@ -212,7 +212,7 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 		hg := testDefaultHarvesterGroup(t, mockHarvester)
 		inputCtx := input.Context{Logger: logp.L(), Cancelation: context.Background()}
 
-		r, err := lock(inputCtx, hg.store, source.Name())
+		r, err := lock(inputCtx, hg.store, hg.identifier.ID(source))
 		if err != nil {
 			t.Fatalf("cannot lock source")
 		}
@@ -226,7 +226,7 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 		ok := false
 		for !ok {
 			// wait until harvester is added to the bookeeper
-			ok = hg.readers.hasID(source.Name())
+			ok = hg.readers.hasID(hg.identifier.ID(source))
 			if ok {
 				releaseResource(r)
 			}
@@ -248,7 +248,7 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 		gorountineChecker := resources.NewGoroutinesChecker()
 		defer gorountineChecker.WaitUntilOriginalCount()
 
-		r, err := lock(inputCtx, hg.store, source.Name())
+		r, err := lock(inputCtx, hg.store, hg.identifier.ID(source))
 		if err != nil {
 			t.Fatalf("cannot lock source")
 		}
@@ -261,15 +261,35 @@ func TestDefaultHarvesterGroup(t *testing.T) {
 
 		require.Equal(t, 0, mockHarvester.getRunCount())
 	})
+
+	t.Run("assert harvester can be restarted after it is finished", func(t *testing.T) {
+		var wg sync.WaitGroup
+		mockHarvester := &mockHarvester{onRun: correctOnRun, wg: &wg}
+		hg := testDefaultHarvesterGroup(t, mockHarvester)
+		inputCtx := input.Context{Logger: logp.L(), Cancelation: context.Background()}
+
+		gorountineChecker := resources.NewGoroutinesChecker()
+		defer gorountineChecker.WaitUntilOriginalCount()
+
+		wg.Add(2)
+		// Restart is called twice because we do not know which one will be scheduled first
+		hg.Restart(inputCtx, source)
+		hg.Restart(inputCtx, source)
+
+		wg.Wait()
+
+		require.Equal(t, 2, mockHarvester.getRunCount())
+	})
 }
 
 func testDefaultHarvesterGroup(t *testing.T, mockHarvester Harvester) *defaultHarvesterGroup {
 	return &defaultHarvesterGroup{
-		readers:   newReaderGroup(),
-		pipeline:  &pipelinemock.MockPipelineConnector{},
-		harvester: mockHarvester,
-		store:     testOpenStore(t, "test", nil),
-		tg:        unison.TaskGroup{},
+		readers:    newReaderGroup(),
+		pipeline:   &pipelinemock.MockPipelineConnector{},
+		harvester:  mockHarvester,
+		store:      testOpenStore(t, "test", nil),
+		identifier: &sourceIdentifier{"filestream::.global::", false},
+		tg:         unison.TaskGroup{},
 	}
 }
 

@@ -43,6 +43,8 @@ type StateMetadataUpdater interface {
 	UpdateMetadata(s Source, v interface{}) error
 	// Remove marks a state for deletion of a given Source.
 	Remove(s Source) error
+	// UpdateOffset sets the offset to the configured offset.
+	UpdateCursor(s Source, cur interface{}) error
 }
 
 // ProspectorCleaner cleans the state store before it starts running.
