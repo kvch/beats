@@ -205,6 +205,14 @@ func (e *inputTestingEnvironment) waitUntilEventCount(count int) {
 	}
 }
 
+// waitUntilHarvesterIsDone detects Harvester stop by checking if the last client has been closed
+// as when a Harvester stops the client is closed.
+func (e *inputTestingEnvironment) waitUntilHarvesterIsDone() {
+	for !e.pipeline.clients[len(e.pipeline.clients)-1].closed {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // requireEventReceived requires that the list of messages has made it into the output.
 func (e *inputTestingEnvironment) requireEventsReceived(events []string) {
 	foundEvents := make([]bool, len(events))
