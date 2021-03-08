@@ -134,6 +134,13 @@ func (e *inputTestingEnvironment) mustRemoveFile(filename string) {
 	}
 }
 
+func (e *inputTestingEnvironment) mustSymlink(filename, symlinkname string) {
+	err := os.Symlink(e.abspath(filename), e.abspath(symlinkname))
+	if err != nil {
+		e.t.Fatalf("failed to create symlink to file '%s': %+v", filename, err)
+	}
+}
+
 func (e *inputTestingEnvironment) mustTruncateFile(filename string, size int64) {
 	path := e.abspath(filename)
 	err := os.Truncate(path, size)

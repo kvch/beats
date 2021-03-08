@@ -60,7 +60,7 @@ type fileWatcherConfig struct {
 	// Interval is the time between two scans.
 	Interval time.Duration `config:"check_interval"`
 	// Scanner is the configuration of the scanner.
-	Scanner fileScannerConfig `config:",inline"`
+	Scanner FileScannerConfig `config:",inline"`
 }
 
 // fileWatcher gets the list of files from a FSWatcher and creates events by
@@ -226,20 +226,20 @@ func (w *fileWatcher) GetFiles() map[string]os.FileInfo {
 	return w.scanner.GetFiles()
 }
 
-type fileScannerConfig struct {
+type FileScannerConfig struct {
 	ExcludedFiles []match.Matcher `config:"exclude_files"`
 	Symlinks      bool            `config:"symlinks"`
 	RecursiveGlob bool            `config:"recursive_glob"`
 }
 
-func defaultFileScannerConfig() fileScannerConfig {
-	return fileScannerConfig{
+func defaultFileScannerConfig() FileScannerConfig {
+	return FileScannerConfig{
 		Symlinks:      false,
 		RecursiveGlob: true,
 	}
 }
 
-func newFileScanner(paths []string, cfg fileScannerConfig) (loginp.FSScanner, error) {
+func newFileScanner(paths []string, cfg FileScannerConfig) (loginp.FSScanner, error) {
 	fs := fileScanner{
 		paths:         paths,
 		excludedFiles: cfg.ExcludedFiles,
@@ -259,7 +259,7 @@ func newFileScanner(paths []string, cfg fileScannerConfig) (loginp.FSScanner, er
 }
 
 // resolveRecursiveGlobs expands `**` from the globs in multiple patterns
-func (s *fileScanner) resolveRecursiveGlobs(c fileScannerConfig) error {
+func (s *fileScanner) resolveRecursiveGlobs(c FileScannerConfig) error {
 	if !c.RecursiveGlob {
 		s.log.Debug("recursive glob disabled")
 		return nil
