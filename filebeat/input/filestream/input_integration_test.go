@@ -229,6 +229,70 @@ func TestFilestreamExceedBuffer(t *testing.T) {
 	env.requireOffsetInRegistry(testlogName, expectedOffset)
 }
 
+// test_truncated_file_open from test_harvester.py
+func TestFilestreamTruncatedFileOpen(t *testing.T) {
+	env := newInputTestingEnvironment(t)
+
+	testlogName := "test.log"
+	inp := env.mustCreateInput(map[string]interface{}{
+		"paths":                             []string{env.abspath(testlogName)},
+		"prospector.scanner.check_interval": "1ms",
+	})
+
+	ctx, cancelInput := context.WithCancel(context.Background())
+	env.startInput(ctx, inp)
+
+	testlines := []byte("first line\nsecond line\nthird line\n")
+	env.mustWriteLinesToFile(testlogName, testlines)
+
+	env.waitUntilEventCount(3)
+	env.requireOffsetInRegistry(testlogName, len(testlines))
+
+	env.mustTruncateFile(testlogName, 0)
+
+	truncatedTestLines := []byte("truncated first line\n")
+	env.mustWriteLinesToFile(testlogName, truncatedTestLines)
+	env.waitUntilEventCount(4)
+
+	cancelInput()
+	env.waitUntilInputStops()
+	env.requireOffsetInRegistry(testlogName, len(truncatedTestLines))
+}
+
+// test_truncated_file_closed from test_harvester.py
+func TestFilestreamTruncatedFileClosed(t *testing.T) {
+	env := newInputTestingEnvironment(t)
+
+	testlogName := "test.log"
+	inp := env.mustCreateInput(map[string]interface{}{
+		"paths":                                []string{env.abspath(testlogName)},
+		"prospector.scanner.check_interval":    "1ms",
+		"close.on_state_change.check_interval": "1ms",
+		"close.on_state_change.inactive":       "50ms",
+	})
+
+	ctx, cancelInput := context.WithCancel(context.Background())
+	env.startInput(ctx, inp)
+
+	testlines := []byte("first line\nsecond line\nthird line\n")
+	env.mustWriteLinesToFile(testlogName, testlines)
+
+	env.waitUntilEventCount(3)
+	env.requireOffsetInRegistry(testlogName, len(testlines))
+
+	env.waitUntilHarvesterIsDone()
+
+	env.mustTruncateFile(testlogName, 0)
+
+	truncatedTestLines := []byte("truncated first line\n")
+	env.mustWriteLinesToFile(testlogName, truncatedTestLines)
+	env.waitUntilEventCount(4)
+
+	cancelInput()
+	env.waitUntilInputStops()
+	env.requireOffsetInRegistry(testlogName, len(truncatedTestLines))
+}
+
 // test_truncated_file_closed from test_harvester.py
 func TestFilestreamCloseTimeout(t *testing.T) {
 	env := newInputTestingEnvironment(t)
@@ -259,4 +323,47 @@ func TestFilestreamCloseTimeout(t *testing.T) {
 	env.waitUntilInputStops()
 
 	env.requireOffsetInRegistry(testlogName, len(testlines))
+}
+
+// test_truncate from test_harvester.py
+func TestFilestreamTruncate(t *testing.T) {
+	env := newInputTestingEnvironment(t)
+
+	testlogName := "test.log"
+	symlinkName := "test.log.symlink"
+	inp := env.mustCreateInput(map[string]interface{}{
+		"paths": []string{
+			env.abspath(testlogName),
+			env.abspath(symlinkName),
+		},
+		"prospector.scanner.check_interval": "1ms",
+		"prospector.scanner.symlinks":       "true",
+	})
+
+	lines := []byte("first line\nsecond line\nthird line\n")
+	env.mustWriteLinesToFile(testlogName, lines)
+
+	env.mustSymlink(testlogName, symlinkName)
+
+	ctx, cancelInput := context.WithCancel(context.Background())
+	env.startInput(ctx, inp)
+
+	env.waitUntilEventCount(3)
+
+	env.requireOffsetInRegistry(testlogName, len(lines))
+
+	// remove symlink
+	env.mustRemoveFile(symlinkName)
+	env.mustTruncateFile(testlogName, 0)
+
+	moreLines := []byte("forth line\nfifth line\n")
+	env.mustWriteLinesToFile(testlogName, moreLines)
+
+	env.waitUntilEventCount(5)
+	env.requireOffsetInRegistry(testlogName, len(moreLines))
+
+	cancelInput()
+	env.waitUntilInputStops()
+
+	env.requireRegistryEntryCount(1)
 }

@@ -134,8 +134,31 @@ func (e *inputTestingEnvironment) mustRemoveFile(filename string) {
 	}
 }
 
+func (e *inputTestingEnvironment) mustTruncateFile(filename string, size int64) {
+	path := e.abspath(filename)
+	err := os.Truncate(path, size)
+	if err != nil {
+		e.t.Fatalf("failed to truncate file '%s': %+v", path, err)
+	}
+}
+
 func (e *inputTestingEnvironment) abspath(filename string) string {
 	return filepath.Join(e.workingDir, filename)
+}
+
+func (e *inputTestingEnvironment) requireRegistryEntryCount(expectedCount int) {
+	inputStore, _ := e.stateStore.Access()
+
+	actual := 0
+	err := inputStore.Each(func(_ string, _ statestore.ValueDecoder) (bool, error) {
+		actual += 1
+		return true, nil
+	})
+	if err != nil {
+		e.t.Fatalf("error while iterating through registry: %+v", err)
+	}
+
+	require.Equal(e.t, actual, expectedCount)
 }
 
 // requireOffsetInRegistry checks if the expected offset is set for a file.
